@@ -1,0 +1,29 @@
+// Scraping template: infinite scroll feed.
+// Tag: @scrape
+
+import { test, expect } from '@playwright/test';
+import { ScrapingHelper } from '../support/scraping-helpers';
+
+test('scrape infinite scroll feed @scrape', async ({ page }) => {
+  const helper = new ScrapingHelper(page, {
+    output: 'test-results/scraping/feed.ndjson',
+    format: 'ndjson'
+  });
+
+  await page.goto('/feed');
+  await helper.checkRobotsTxtOrThrow();
+
+  const items = await helper.scrapeInfiniteScroll({
+    itemSelector: 'article.post',
+    extractFn: async (post) => ({
+      title: (await post.getByRole('heading').textContent())?.trim() ?? '',
+      author: (await post.getByTestId('author').textContent().catch(() => ''))?.trim() ?? '',
+      date: await post.locator('time').getAttribute('datetime').catch(() => null)
+    }),
+    maxScrolls: 15,
+    stableForIterations: 2
+  });
+
+  await helper.writeOutput(items);
+  expect(items.length).toBeGreaterThan(0);
+});

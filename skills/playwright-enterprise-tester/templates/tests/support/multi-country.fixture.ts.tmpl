@@ -1,0 +1,46 @@
+// Multi-tenant / multi-country / multi-language fixture.
+// Resolves baseURL dynamically based on PWTEST_BRAND / PWTEST_COUNTRY / PWTEST_LANG env vars.
+//
+// Usage: import { test, expect } from './support/multi-country.fixture';
+
+import { test as base, expect } from '@playwright/test';
+
+type MultiCountry = {
+  brand: string;
+  country: string;
+  lang: string;
+  baseUrl: string;
+};
+
+const DEFAULT_BRAND = process.env.PWTEST_BRAND ?? 'mybrand';
+const DEFAULT_COUNTRY = process.env.PWTEST_COUNTRY ?? 'it';
+const DEFAULT_LANG = process.env.PWTEST_LANG ?? 'it';
+
+// Override in .playwright-tester.json → multiTenant.baseUrlTemplate
+const BASE_URL_TEMPLATE = process.env.PWTEST_BASE_URL_TEMPLATE
+  ?? 'https://{brand}.{country}.example.com/{language}';
+
+function resolveBaseUrl(brand: string, country: string, lang: string): string {
+  // If PWTEST_BASE_URL is explicitly set, use it (overrides template)
+  if (process.env.PWTEST_BASE_URL) return process.env.PWTEST_BASE_URL;
+  return BASE_URL_TEMPLATE
+    .replace('{brand}', brand)
+    .replace('{country}', country)
+    .replace('{language}', lang);
+}
+
+export const test = base.extend<{ multiCountry: MultiCountry }>({
+  multiCountry: async ({}, use) => {
+    const brand = DEFAULT_BRAND;
+    const country = DEFAULT_COUNTRY;
+    const lang = DEFAULT_LANG;
+    const baseUrl = resolveBaseUrl(brand, country, lang);
+    await use({ brand, country, lang, baseUrl });
+  },
+  // Override baseURL at context level using the resolved value
+  baseURL: async ({ multiCountry }, use) => {
+    await use(multiCountry.baseUrl);
+  },
+});
+
+export { expect };

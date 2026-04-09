@@ -1,0 +1,33 @@
+// Smoke test: fast confidence check on the main route.
+// Tag: @smoke
+// Runs in all runner modes; defensive defaults apply.
+
+import { test, expect } from '../support/console-capture';
+
+test.describe('smoke', () => {
+  test('home page loads without errors @smoke @critical', async ({
+    page,
+    consoleCapture,
+  }) => {
+    await page.goto('/');
+
+    // Business signal: main heading is visible
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+    // No forbidden console/page errors (enforced by consoleCapture fixture)
+    expect(consoleCapture.errors).toEqual([]);
+    expect(consoleCapture.pageErrors).toEqual([]);
+  });
+
+  test('main navigation is reachable @smoke', async ({ page }) => {
+    await page.goto('/');
+
+    const nav = page.getByRole('navigation').first();
+    await expect(nav).toBeVisible();
+
+    // At least one top-level link is present and reachable
+    const firstLink = nav.getByRole('link').first();
+    await expect(firstLink).toBeVisible();
+    await expect(firstLink).toHaveAttribute('href', /.+/);
+  });
+});

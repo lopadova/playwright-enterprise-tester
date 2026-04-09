@@ -1,0 +1,46 @@
+// Axe a11y scan (P2.12). Requires @axe-core/playwright.
+// Tag: @a11y
+
+import { test, expect } from '../support/axe-fixture';
+
+test.describe('a11y scan', () => {
+  test('home page @a11y @critical', async ({ page, axe }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+    const results = await axe.scan();
+
+    // Log all violations for diagnostics
+    if (results.violations.length > 0) {
+      console.log(JSON.stringify(
+        results.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.length })),
+        null, 2
+      ));
+    }
+
+    // Fail only on critical/serious
+    axe.failOnCriticalOrSerious(results);
+  });
+
+  test('pdp @a11y', async ({ page, axe }) => {
+    await page.goto('/');
+    const firstProduct = page.getByRole('link', { name: /scopri|dettagli/i }).first();
+    await firstProduct.click();
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+    const results = await axe.scan();
+    axe.failOnCriticalOrSerious(results);
+  });
+
+  test('checkout form @a11y @critical', async ({ page, axe }) => {
+    await page.goto('/checkout');
+    await expect(page.getByRole('heading', { name: /checkout|ordine/i })).toBeVisible();
+
+    // Exclude payment gateway iframes (not under our control)
+    const results = await axe.scan({
+      exclude: ['iframe[src*="stripe"]', 'iframe[src*="paypal"]']
+    });
+
+    axe.failOnCriticalOrSerious(results);
+  });
+});

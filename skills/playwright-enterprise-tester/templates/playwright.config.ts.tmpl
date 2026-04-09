@@ -1,0 +1,85 @@
+// Playwright native runtime configuration.
+// Generated from .claude/skills/playwright-enterprise-tester/templates/playwright.config.ts.tmpl
+// The skill policy file is .playwright-tester.json — DO NOT put AI policy here.
+
+import { defineConfig, devices } from '@playwright/test';
+
+const isCI = !!process.env.CI;
+const runnerMode = process.env.PWTEST_RUNNER_MODE ?? (isCI ? 'ci' : 'local');
+const baseURL = process.env.PWTEST_BASE_URL ?? process.env.APP_URL ?? 'http://127.0.0.1:8000';
+
+export default defineConfig({
+  testDir: './tests/e2e',
+  fullyParallel: true,
+  forbidOnly: isCI,
+  retries: runnerMode === 'ci' ? 2 : 0,
+  workers: runnerMode === 'ci' ? 2 : '50%',
+  timeout: 30_000,
+  expect: { timeout: 7_000 },
+
+  reporter: runnerMode === 'ci'
+    ? [
+        ['line'],
+        ['html', { open: 'never', outputFolder: 'playwright-report' }],
+        ['json', { outputFile: 'test-results/results.json' }],
+      ]
+    : [['line']],
+
+  outputDir: 'test-results/artifacts',
+
+  use: {
+    baseURL,
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: runnerMode === 'ci' ? 'retain-on-failure' : 'off',
+    actionTimeout: 10_000,
+    navigationTimeout: 30_000,
+    // extraHTTPHeaders, userAgent, etc. can be added here if middleware requires it
+  },
+
+  projects: [
+    // Setup project — runs auth.setup.ts once before dependent projects
+    {
+      name: 'setup',
+      testMatch: /setup\/auth\.setup\.ts/,
+    },
+
+    // Guest context (no auth)
+    {
+      name: 'chromium-guest',
+      use: { ...devices['Desktop Chrome'] },
+      testIgnore: [/\.user\.spec\.ts$/, /\.admin\.spec\.ts$/, /setup\//],
+    },
+
+    // User context (authenticated via storage state)
+    {
+      name: 'chromium-user',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: 'playwright/.auth/user.json',
+      },
+      dependencies: ['setup'],
+      testMatch: /.*\.user\.spec\.ts/,
+    },
+
+    // Admin context — disabled by default, enable if testData.precreatedUsers.admin.enabled = true
+    // {
+    //   name: 'chromium-admin',
+    //   use: {
+    //     ...devices['Desktop Chrome'],
+    //     storageState: 'playwright/.auth/admin.json',
+    //   },
+    //   dependencies: ['setup'],
+    //   testMatch: /.*\.admin\.spec\.ts/,
+    // },
+  ],
+
+  // webServer is optional: if the app is already running (APP_URL set), skip it.
+  // Uncomment and adjust for local auto-boot.
+  // webServer: {
+  //   command: 'php artisan serve --host=127.0.0.1 --port=8000',
+  //   url: 'http://127.0.0.1:8000',
+  //   reuseExistingServer: !isCI,
+  //   timeout: 60_000,
+  // },
+});

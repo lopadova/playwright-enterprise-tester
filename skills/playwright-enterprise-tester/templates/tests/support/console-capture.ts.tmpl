@@ -1,0 +1,68 @@
+// Silent failure detection: captures console.error and page.on('pageerror').
+// Fails the test if forbidden errors occur (per runner mode + allowlist).
+//
+// Usage: import { test, expect } from './support/console-capture';
+
+import { test as base, expect } from '@playwright/test';
+
+type ConsoleAllowlistEntry = { type: 'console' | 'pageerror'; messageRegex: string };
+
+const DEFAULT_ALLOWLIST: ConsoleAllowlistEntry[] = [
+  { type: 'console', messageRegex: '^\\[HMR\\]' },
+  { type: 'console', messageRegex: 'DevTools' },
+];
+
+const isCI = !!process.env.CI || process.env.PWTEST_RUNNER_MODE === 'ci';
+const failOnConsoleError = process.env.PWTEST_FAIL_ON_CONSOLE_ERROR === 'true'
+  || (isCI && process.env.PWTEST_FAIL_ON_CONSOLE_ERROR !== 'false');
+
+function isAllowlisted(type: 'console' | 'pageerror', message: string, allowlist: ConsoleAllowlistEntry[]): boolean {
+  return allowlist.some(
+    (e) => e.type === type && new RegExp(e.messageRegex).test(message)
+  );
+}
+
+export const test = base.extend<{
+  consoleCapture: { errors: string[]; pageErrors: string[] };
+}>({
+  consoleCapture: async ({ page }, use, testInfo) => {
+    const errors: string[] = [];
+    const pageErrors: string[] = [];
+    const allowlist = DEFAULT_ALLOWLIST;
+
+    page.on('console', (msg) => {
+      if (msg.type() !== 'error') return;
+      const text = msg.text();
+      if (isAllowlisted('console', text, allowlist)) return;
+      errors.push(text);
+    });
+
+    page.on('pageerror', (err) => {
+      const text = err.message;
+      if (isAllowlisted('pageerror', text, allowlist)) return;
+      pageErrors.push(text);
+    });
+
+    await use({ errors, pageErrors });
+
+    // Attach to test info so the report can see them
+    if (errors.length > 0 || pageErrors.length > 0) {
+      await testInfo.attach('silent-errors.json', {
+        body: JSON.stringify({ errors, pageErrors }, null, 2),
+        contentType: 'application/json',
+      });
+    }
+
+    // Page errors always fail
+    if (pageErrors.length > 0) {
+      throw new Error(`Uncaught page errors detected:\n${pageErrors.join('\n')}`);
+    }
+
+    // Console errors fail only when enforced
+    if (failOnConsoleError && errors.length > 0) {
+      throw new Error(`Forbidden console.error detected:\n${errors.join('\n')}`);
+    }
+  },
+});
+
+export { expect };

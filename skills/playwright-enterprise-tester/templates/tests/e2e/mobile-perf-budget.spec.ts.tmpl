@@ -1,0 +1,90 @@
+// Mobile perf budget test with device emulation + throttling (P2.15).
+// Tag: @perf @mobile
+
+import { test, expect, devices } from '@playwright/test';
+
+// Use Pixel 7 device preset
+test.use({ ...devices['Pixel 7'] });
+
+type WebVitalsSnapshot = {
+  LCP?: number;
+  CLS?: number;
+  INP?: number;
+  FCP?: number;
+};
+
+const MOBILE_BUDGETS: Record<string, Required<WebVitalsSnapshot>> = {
+  home:     { LCP: 2500, CLS: 0.1, INP: 200, FCP: 1800 },
+  pdp:      { LCP: 2500, CLS: 0.1, INP: 200, FCP: 1800 },
+  checkout: { LCP: 3000, CLS: 0.1, INP: 200, FCP: 2000 }
+};
+
+async function applyMobileThrottling(page: import('@playwright/test').Page) {
+  const client = await page.context().newCDPSession(page);
+  await client.send('Network.emulateNetworkConditions', {
+    offline: false,
+    // slow-3g: ~400ms RTT, ~500 kbps down
+    latency: 400,
+    downloadThroughput: (500 * 1024) / 8,
+    uploadThroughput: (500 * 1024) / 8
+  });
+  await client.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+}
+
+async function collectWebVitals(page: import('@playwright/test').Page): Promise<WebVitalsSnapshot> {
+  await page.addScriptTag({
+    url: 'https://unpkg.com/web-vitals@3/dist/web-vitals.iife.js'
+  }).catch(() => {});
+
+  await page.evaluate(() => {
+    (window as any).__pwVitals = {};
+    const wv = (window as any).webVitals;
+    if (!wv) return;
+    wv.onLCP?.((m: any) => { (window as any).__pwVitals.LCP = m.value; });
+    wv.onCLS?.((m: any) => { (window as any).__pwVitals.CLS = m.value; });
+    wv.onINP?.((m: any) => { (window as any).__pwVitals.INP = m.value; });
+    wv.onFCP?.((m: any) => { (window as any).__pwVitals.FCP = m.value; });
+  });
+
+  await page.waitForTimeout(1000);
+  await page.mouse.click(10, 10);
+  await page.waitForTimeout(500);
+
+  return await page.evaluate(() => (window as any).__pwVitals ?? {});
+}
+
+function assertBudget(actual: WebVitalsSnapshot, budget: Required<WebVitalsSnapshot>, pageType: string) {
+  const violations: string[] = [];
+  for (const metric of Object.keys(budget) as Array<keyof WebVitalsSnapshot>) {
+    const a = actual[metric];
+    const b = budget[metric];
+    if (a !== undefined && a > b) {
+      violations.push(`${metric}: ${a.toFixed(0)} > ${b}`);
+    }
+  }
+  if (violations.length > 0) {
+    throw new Error(`[mobile ${pageType}] Budget violations:\n  ${violations.join('\n  ')}`);
+  }
+}
+
+test.describe('mobile perf budgets', () => {
+  test('mobile home perf @perf @mobile @critical', async ({ page }) => {
+    await applyMobileThrottling(page);
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+    const vitals = await collectWebVitals(page);
+    assertBudget(vitals, MOBILE_BUDGETS.home, 'home');
+  });
+
+  test('mobile pdp perf @perf @mobile', async ({ page }) => {
+    await applyMobileThrottling(page);
+    await page.goto('/');
+    const firstProduct = page.getByRole('link', { name: /scopri|dettagli/i }).first();
+    await firstProduct.click();
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+    const vitals = await collectWebVitals(page);
+    assertBudget(vitals, MOBILE_BUDGETS.pdp, 'pdp');
+  });
+});

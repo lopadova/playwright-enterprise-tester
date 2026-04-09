@@ -1,0 +1,32 @@
+// Scraping template: category listing with pagination.
+// Tag: @scrape
+
+import { test, expect } from '@playwright/test';
+import { ScrapingHelper } from '../support/scraping-helpers';
+
+test.describe.configure({ mode: 'serial' });
+
+test('scrape category products with pagination @scrape', async ({ page }) => {
+  const helper = new ScrapingHelper(page, {
+    output: 'test-results/scraping/category-products.json',
+    format: 'json'
+  });
+
+  await page.goto('/c/scarpe');
+  await helper.checkRobotsTxtOrThrow();
+
+  const products = await helper.scrapePagination({
+    itemSelector: '[data-testid="product-card"]',
+    extractFn: async (card) => ({
+      name: (await card.getByRole('heading').textContent())?.trim() ?? '',
+      priceText: (await card.locator('.price').textContent())?.trim() ?? '',
+      url: await card.getByRole('link').first().getAttribute('href'),
+      imgSrc: await card.getByRole('img').first().getAttribute('src')
+    }),
+    nextPageSelector: "a[rel='next']",
+    maxPages: 10
+  });
+
+  await helper.writeOutput(products);
+  expect(products.length).toBeGreaterThan(0);
+});

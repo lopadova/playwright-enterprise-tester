@@ -1,0 +1,39 @@
+// Scraping template: modal detail extraction.
+// Opens each card's modal and extracts nested data.
+// Tag: @scrape
+
+import { test, expect } from '@playwright/test';
+import { ScrapingHelper } from '../support/scraping-helpers';
+
+test('scrape modal details @scrape', async ({ page }) => {
+  const helper = new ScrapingHelper(page, {
+    output: 'test-results/scraping/details.json',
+    format: 'json'
+  });
+
+  await page.goto('/c/offerte');
+  await helper.checkRobotsTxtOrThrow();
+
+  const cards = await page.getByRole('article').all();
+  const details: Array<{ title: string; description: string; specs: string[] }> = [];
+
+  for (const card of cards) {
+    await helper.throttle();
+
+    await card.getByRole('button', { name: /dettagli/i }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible({ timeout: 5000 });
+
+    details.push({
+      title: (await dialog.getByRole('heading', { level: 2 }).textContent())?.trim() ?? '',
+      description: (await dialog.locator('.description').textContent())?.trim() ?? '',
+      specs: await dialog.locator('.specs li').allTextContents()
+    });
+
+    await dialog.getByRole('button', { name: /chiudi|close/i }).click();
+    await expect(dialog).toBeHidden();
+  }
+
+  await helper.writeOutput(details);
+  expect(details.length).toBe(cards.length);
+});

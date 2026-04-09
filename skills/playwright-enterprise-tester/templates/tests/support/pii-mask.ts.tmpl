@@ -1,0 +1,45 @@
+// PII masking helpers for screenshots.
+// In CI runner mode, masking is FORCED. In local, it's off by default.
+
+import type { Page, Locator } from '@playwright/test';
+
+const DEFAULT_MASK_SELECTORS = [
+  "input[type='email']",
+  "input[name*='phone']",
+  "input[name*='tax_code']",
+  "input[name*='codice_fiscale']",
+  "input[name*='iban']",
+  "input[name*='card']",
+  "input[name*='cvv']",
+  "[data-pii]",
+];
+
+export function isPiiMaskingActive(): boolean {
+  const isCI = !!process.env.CI || process.env.PWTEST_RUNNER_MODE === 'ci';
+  if (isCI) return true; // CI forces PII masking
+  return process.env.PWTEST_PII_MASK === 'true';
+}
+
+/**
+ * Returns an array of Locators to mask based on the configured selectors.
+ * Pass to toHaveScreenshot or page.screenshot for PII-safe captures.
+ */
+export function piiMasks(page: Page, extra: string[] = []): Locator[] {
+  if (!isPiiMaskingActive()) return [];
+  return [...DEFAULT_MASK_SELECTORS, ...extra].map((sel) => page.locator(sel));
+}
+
+/**
+ * Example usage in a visual regression test:
+ *
+ * import { test, expect } from '@playwright/test';
+ * import { piiMasks } from './support/pii-mask';
+ *
+ * test('account dashboard', async ({ page }) => {
+ *   await page.goto('/account');
+ *   await expect(page).toHaveScreenshot('account.png', {
+ *     mask: piiMasks(page, ['.user-avatar', '.last-login']),
+ *     maxDiffPixelRatio: 0.01,
+ *   });
+ * });
+ */

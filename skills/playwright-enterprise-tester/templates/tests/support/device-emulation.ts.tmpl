@@ -1,0 +1,39 @@
+// Device emulation helper for multi-device perf tests (P2.15).
+// Applies CDP-level CPU + network throttling to match real mobile conditions.
+
+import type { Page, BrowserContext } from '@playwright/test';
+
+type ThrottleProfile = {
+  name: string;
+  cpuSlowdown: number;
+  network: 'none' | 'slow-3g' | '3g' | '4g';
+};
+
+const NETWORK_PROFILES: Record<string, { latency: number; down: number; up: number }> = {
+  none: { latency: 0, down: 0, up: 0 },
+  'slow-3g': { latency: 400, down: (500 * 1024) / 8, up: (500 * 1024) / 8 },
+  '3g': { latency: 150, down: (1.6 * 1024 * 1024) / 8, up: (750 * 1024) / 8 },
+  '4g': { latency: 20, down: (4 * 1024 * 1024) / 8, up: (3 * 1024 * 1024) / 8 }
+};
+
+export async function applyThrottling(page: Page, profile: ThrottleProfile): Promise<void> {
+  const client = await page.context().newCDPSession(page);
+  const net = NETWORK_PROFILES[profile.network];
+  if (profile.network !== 'none') {
+    await client.send('Network.emulateNetworkConditions', {
+      offline: false,
+      latency: net.latency,
+      downloadThroughput: net.down,
+      uploadThroughput: net.up
+    });
+  }
+  if (profile.cpuSlowdown > 1) {
+    await client.send('Emulation.setCPUThrottlingRate', { rate: profile.cpuSlowdown });
+  }
+}
+
+export const PROFILES: Record<string, ThrottleProfile> = {
+  desktop: { name: 'desktop', cpuSlowdown: 1, network: 'none' },
+  mobile: { name: 'mobile', cpuSlowdown: 4, network: 'slow-3g' },
+  tablet: { name: 'tablet', cpuSlowdown: 2, network: '4g' }
+};

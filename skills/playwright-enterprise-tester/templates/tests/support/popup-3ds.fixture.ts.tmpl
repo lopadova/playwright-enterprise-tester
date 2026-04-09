@@ -1,0 +1,58 @@
+// Popup / 3DS / payment gateway fixture (P2.01).
+// Usage: import { test, expect } from './support/popup-3ds.fixture';
+
+import { test as base, expect, type Page, type Frame } from '@playwright/test';
+
+type GatewayCheckpoint = {
+  waitForGatewayFrame: (timeoutMs?: number) => Promise<{ name: string; frame: Frame } | null>;
+  waitForPopup: (triggerFn: () => Promise<void>, timeoutMs?: number) => Promise<Page | null>;
+  popupErrors: string[];
+};
+
+const KNOWN_GATEWAY_FRAMES = [
+  { name: 'stripe-3ds', regex: /js\.stripe\.com|hooks\.stripe\.com/ },
+  { name: 'paypal-checkout', regex: /paypal\.com|paypalobjects\.com/ },
+  { name: 'braintree', regex: /braintreegateway\.com/ },
+  { name: 'satispay', regex: /satispay\.com/ },
+  { name: 'scalapay', regex: /scalapay\.com/ }
+];
+
+export const test = base.extend<{ gatewayCheckpoint: GatewayCheckpoint }>({
+  gatewayCheckpoint: async ({ page, context }, use) => {
+    const popupErrors: string[] = [];
+
+    async function waitForGatewayFrame(timeoutMs = 15000): Promise<{ name: string; frame: Frame } | null> {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        for (const g of KNOWN_GATEWAY_FRAMES) {
+          const frame = page.frames().find(f => g.regex.test(f.url()));
+          if (frame) return { name: g.name, frame };
+        }
+        await new Promise(r => setTimeout(r, 200));
+      }
+      return null;
+    }
+
+    async function waitForPopup(triggerFn: () => Promise<void>, timeoutMs = 15000): Promise<Page | null> {
+      try {
+        const [popup] = await Promise.all([
+          context.waitForEvent('page', { timeout: timeoutMs }),
+          triggerFn()
+        ]);
+        // Attach error capture to the popup
+        popup.on('pageerror', (err) => popupErrors.push(`[popup] ${err.message}`));
+        popup.on('console', (msg) => {
+          if (msg.type() === 'error') popupErrors.push(`[popup console] ${msg.text()}`);
+        });
+        await popup.waitForLoadState('domcontentloaded').catch(() => {});
+        return popup;
+      } catch {
+        return null;
+      }
+    }
+
+    await use({ waitForGatewayFrame, waitForPopup, popupErrors });
+  }
+});
+
+export { expect };

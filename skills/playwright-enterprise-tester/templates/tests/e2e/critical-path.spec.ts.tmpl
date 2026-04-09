@@ -1,0 +1,72 @@
+// Critical business path: add product to cart → checkout initialization.
+// Phase 1: stops at gateway initialization, does not complete payment.
+// Tags: @critical @ajax @phase1-checkpoint
+
+import { test, expect } from '../support/console-capture';
+
+test.describe('critical path: cart → checkout', () => {
+  test('add product to cart and reach checkout gateway @critical @ajax', async ({
+    page,
+    consoleCapture,
+  }) => {
+    // 1) Open a PDP — adjust the URL pattern to match your catalog
+    await page.goto('/');
+    const firstProduct = page
+      .getByRole('link', { name: /scopri|dettagli|vedi/i })
+      .first();
+    await expect(firstProduct).toBeVisible();
+    await Promise.all([
+      page.waitForLoadState('domcontentloaded'),
+      firstProduct.click(),
+    ]);
+
+    // 2) Product title visible → PDP is loaded
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+    // 3) Add to cart — partial AJAX update
+    const addToCart = page.getByRole('button', {
+      name: /add to cart|acquista/i,
+    });
+    await expect(addToCart).toBeEnabled();
+
+    const countBefore = (await page
+      .getByTestId('cart-count')
+      .textContent()
+      .catch(() => '0')) ?? '0';
+
+    await addToCart.click();
+
+    // Wait for the cart count to change (business signal)
+    await expect(page.getByTestId('cart-count')).not.toHaveText(countBefore, {
+      timeout: 10_000,
+    });
+
+    // 4) Navigate to cart
+    await page.goto('/cart');
+    await expect(page.getByRole('heading', { name: /cart/i })).toBeVisible();
+
+    // 5) Proceed to checkout
+    const checkoutBtn = page.getByRole('link', {
+      name: /proceed to checkout|checkout/i,
+    });
+    await expect(checkoutBtn).toBeVisible();
+    await Promise.all([
+      page.waitForURL(/\/checkout/, { timeout: 15_000 }),
+      checkoutBtn.click(),
+    ]);
+
+    // 6) Checkout page loaded
+    await expect(page.getByRole('heading', { name: /checkout|ordine/i })).toBeVisible();
+
+    // 7) Phase 1 checkpoint: gateway initialization
+    // Assert a payment-method selector is present; do NOT complete payment.
+    const paymentArea = page.getByRole('region', { name: /pagament/i });
+    await expect(paymentArea.or(page.getByTestId('payment-methods'))).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // 8) No silent errors during the whole flow
+    expect(consoleCapture.pageErrors).toEqual([]);
+    // Console errors are allowed warnings in local mode, enforced in CI via fixture
+  });
+});

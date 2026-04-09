@@ -1,0 +1,970 @@
+{
+  "$schema": "https://example.local/schemas/playwright-tester.schema.json",
+  "schemaVersion": 2,
+  "version": 4,
+  "phase": 2,
+  "enabled": true,
+  "_doc": "Repo-level policy for the playwright-enterprise-tester plugin. Phase 2 adds 17 toggleable features (P2.01-P2.18 excluding P2.13 API testing). ALL phase 2 features are OFF by default and can be enabled independently. Dashboard (P2.09) is spec-only. See CONFIGURATION.md in the plugin docs.",
+
+  "profile": {
+    "laravel": {
+      "enabled": true,
+      "phase": 1,
+      "detectWhen": {
+        "composerPackages": ["laravel/framework"],
+        "files": ["webpack.mix.js", "app/Domain", "artisan"]
+      },
+      "legacyMpaMode": true,
+      "csrfMetaSelector": "meta[name='csrf-token']",
+      "laravelSessionCookieName": "project_session",
+      "blade": true,
+      "jquery": true,
+      "alpine": true,
+      "mixManifestPath": "public/mix-manifest.json"
+    }
+  },
+
+  "mode": {
+    "default": "smoke",
+    "enabledModes": [
+      "smoke",
+      "critical-path",
+      "e2e-regression",
+      "ajax-heavy",
+      "auth-protected",
+      "legacy-mpa",
+      "visual-regression",
+      "perf-budget",
+      "dynamic-scraping",
+      "release-gate",
+      "a11y-scan",
+      "mobile-perf",
+      "cross-browser",
+      "popup-checkout"
+    ],
+    "allowAutoInference": true,
+    "preferNarrowestValidScope": true
+  },
+
+  "runner": {
+    "autoDetect": true,
+    "autoDetectCiEnvKeys": ["CI", "GITHUB_ACTIONS", "GITLAB_CI"],
+    "activeModeOverrideEnvKey": "PWTEST_RUNNER_MODE",
+    "activeMode": null,
+    "_activeMode_doc": "Runtime-only. Populated by the skill from PWTEST_RUNNER_MODE env or autoDetect. Never set in config file.",
+    "modes": {
+      "local": {
+        "description": "Dev PC con ambiente demo sandbox, DB anonimizzato, tool dev completi",
+        "stubExternalServices": false,
+        "maskPiiInArtifacts": false,
+        "videoDefault": "off",
+        "traceDefault": "on-first-retry",
+        "screenshotDefault": "only-on-failure",
+        "parallelWorkers": "50%",
+        "retries": 0,
+        "flakinessSink": "off",
+        "reporters": ["line"],
+        "failOnConsoleError": false,
+        "allowDestructiveTests": true,
+        "htmlReport": false,
+        "requireConfirmationForScopeAll": true
+      },
+      "ci": {
+        "description": "GitHub Actions / GitLab CI, mocks e stubs obbligatori",
+        "stubExternalServices": true,
+        "maskPiiInArtifacts": true,
+        "maskPiiInArtifactsForced": true,
+        "videoDefault": "retain-on-failure",
+        "traceDefault": "on-first-retry",
+        "screenshotDefault": "only-on-failure",
+        "parallelWorkers": 2,
+        "retries": 2,
+        "flakinessSink": "jsonl",
+        "reporters": ["line", "html", "json"],
+        "failOnConsoleError": true,
+        "allowDestructiveTests": false,
+        "htmlReport": true,
+        "shardingEnabled": true,
+        "shardsTotal": 4
+      }
+    }
+  },
+
+  "governance": {
+    "fixTestsOnly": true,
+    "fixAppCode": false,
+    "allowAppCodeChangesWhenExplicitlyEnabled": false,
+    "doubleConfirmAppCodeChanges": true,
+    "requireClassificationBeforeAppChanges": true,
+    "maxFixAttempts": 3,
+    "stopAfterMaxFixAttempts": true,
+    "reportAllTouchedFiles": true,
+    "appCodeChangeLog": "test-results/app-code-changes.log"
+  },
+
+  "discovery": {
+    "autoDetectStack": true,
+    "autoDetectPackageManager": true,
+    "autoDetectRuntime": true,
+    "autoDetectMonorepo": true,
+    "preferExistingPlaywrightConfig": true,
+    "preferExistingProjectScripts": true,
+    "readEnvFiles": true,
+    "envFiles": [
+      ".env",
+      ".env.local",
+      ".env.development",
+      ".env.test",
+      ".env.testing",
+      ".env.playwright",
+      ".env.e2e"
+    ],
+    "stackHints": {
+      "laravel": {
+        "detectWhenFilesExist": ["artisan", "composer.json"],
+        "possibleBackendCommands": [
+          "php artisan serve --host=127.0.0.1 --port=8000",
+          "composer run dev",
+          "php -S 127.0.0.1:8000 -t public"
+        ],
+        "possibleBaseUrls": ["http://127.0.0.1:8000", "http://localhost:8000"]
+      },
+      "laravelMix": {
+        "detectWhenFilesExist": ["webpack.mix.js", "public/mix-manifest.json"],
+        "possibleFrontendCommands": ["npm run watch", "npm run hot", "npm run dev"]
+      },
+      "laravelVite": {
+        "detectWhenFilesExist": [
+          "vite.config.js",
+          "vite.config.ts",
+          "vite.config.mjs",
+          "vite.config.cjs"
+        ],
+        "possibleFrontendCommands": ["npm run dev", "pnpm dev", "yarn dev", "bun run dev"]
+      },
+      "node": {
+        "detectWhenFilesExist": ["package.json"],
+        "possibleCommands": ["npm run dev", "pnpm dev", "yarn dev", "bun run dev"]
+      },
+      "bun": {
+        "detectWhenFilesExist": ["bun.lock", "bun.lockb"],
+        "possibleCommands": ["bun run dev", "bun run start"]
+      },
+      "cloudflareWorker": {
+        "detectWhenFilesExist": ["wrangler.toml", "wrangler.json", "wrangler.jsonc"],
+        "possibleCommands": ["wrangler dev", "npx wrangler dev"],
+        "possibleBaseUrls": ["http://127.0.0.1:8787", "http://localhost:8787"]
+      },
+      "monorepo": {
+        "detectWhenFilesExist": ["pnpm-workspace.yaml", "turbo.json", "nx.json"]
+      }
+    }
+  },
+
+  "execution": {
+    "baseURL": null,
+    "startCommand": null,
+    "frontendCommand": null,
+    "workingDirectory": null,
+    "browserProject": "chromium",
+    "runAllProjectsBeforeFinalSignoff": false,
+    "reuseExistingServer": true,
+    "respectExistingRunningEnvironment": true,
+    "preferFeatureScopeFirst": true,
+    "fallbackToRemoteBaseUrl": true,
+    "remoteBaseUrlEnvKeys": ["APP_URL", "PLAYWRIGHT_BASE_URL", "PWTEST_BASE_URL", "BASE_URL"],
+    "scopeAllRequiresConfirmationInLocal": true
+  },
+
+  "playwrightDefaults": {
+    "timeoutMs": 30000,
+    "expectTimeoutMs": 7000,
+    "navigationTimeoutMs": 30000,
+    "actionTimeoutMs": 10000,
+    "fullyParallel": true,
+    "forbidOnlyInCI": true,
+    "outputDir": "test-results/artifacts",
+    "_note": "retries/reporters/trace/screenshot/video are resolved per runner mode (see runner.modes)"
+  },
+
+  "multiTenant": {
+    "enabled": false,
+    "phase": 1,
+    "brands": [{ "name": "mybrand", "subdomain": "www" }],
+    "countries": ["it"],
+    "languages": ["it"],
+    "baseUrlTemplate": "https://{brand}.{country}.example.com/{language}",
+    "matrixStrategy": "critical-only",
+    "fullMatrixOnlyInMode": "release-gate",
+    "activeBrand": null,
+    "activeCountry": null,
+    "activeLanguage": null,
+    "_active_doc": "Runtime-only. activeBrand/Country/Language are populated from PWTEST_BRAND/COUNTRY/LANG env vars at execution time. Never set in config file."
+  },
+
+  "testData": {
+    "strategy": "readonly-staging",
+    "artisanBridge": {
+      "enabled": false,
+      "phase": 1,
+      "beforeAll": null,
+      "afterAll": null,
+      "beforeEachFile": null,
+      "examples": {
+        "reset": "php artisan test:reset-db",
+        "seed": "php artisan test:seed-fixtures",
+        "createUser": "php artisan test:create-user --role=user"
+      }
+    },
+    "precreatedUsers": {
+      "guest": { "requiresAuth": false, "enabled": true },
+      "user": {
+        "enabled": true,
+        "envKey": "PWTEST_USER_EMAIL",
+        "envPassKey": "PWTEST_USER_PASSWORD",
+        "staging": { "precreated": true }
+      },
+      "admin": {
+        "enabled": false,
+        "envKey": "PWTEST_ADMIN_EMAIL",
+        "envPassKey": "PWTEST_ADMIN_PASSWORD"
+      },
+      "editor": {
+        "enabled": false,
+        "envKey": "PWTEST_EDITOR_EMAIL",
+        "envPassKey": "PWTEST_EDITOR_PASSWORD"
+      }
+    },
+    "forbidDestructiveTests": true,
+    "checkoutSandboxGatewaysOnly": true,
+    "allowedGatewaysInTests": ["stripe-test", "paypal-sandbox", "braintree-sandbox"]
+  },
+
+  "asyncPolicy": {
+    "enabled": true,
+    "preferUiSignals": true,
+    "preferLocatorAutoWaiting": true,
+    "preferExpectAssertionsOverManualWaits": true,
+    "allowWaitForResponse": true,
+    "allowWaitForRequest": false,
+    "allowNetworkIdleAsFallback": true,
+    "forbidWaitForTimeout": true,
+    "waitForTimeoutAllowedOnlyWithJustification": true,
+    "waitForTimeoutMaxMs": 1000,
+    "treatSkeletonAsLoadSignal": true,
+    "treatSpinnerAsLoadSignal": true,
+    "treatDisabledSubmitRecoveryAsSignal": true,
+    "requireBusinessOutcomeAssertionAfterAsyncAction": true,
+    "ajaxScenarios": {
+      "includeFilterRefresh": true,
+      "includeInfiniteScroll": true,
+      "includeDelayedHydration": true,
+      "includeToastAfterSubmit": true,
+      "includePartialCartRefresh": true,
+      "includeLazyLoadedTabs": true
+    }
+  },
+
+  "legacyMpa": {
+    "enabled": true,
+    "phase": 1,
+    "waitForFullPageLoadAfterSubmit": true,
+    "jqueryReadySignal": true,
+    "alpineInitSignal": true,
+    "expectCsrfToken": true,
+    "followRedirectsAfterPostSubmit": true
+  },
+
+  "auth": {
+    "enabled": true,
+    "allowStorageStateReuse": true,
+    "preferReusableAuthSetup": true,
+    "preferSeededTestAccounts": true,
+    "allowUiLoginFlow": true,
+    "allowApiLoginBootstrap": false,
+    "neverHardcodeSecretsInSpecs": true,
+    "storageStatePath": "playwright/.auth/user.json",
+    "multiRoleSupport": true,
+    "roles": [
+      { "name": "guest", "enabled": true },
+      { "name": "user", "enabled": true },
+      { "name": "admin", "enabled": false },
+      { "name": "editor", "enabled": false }
+    ]
+  },
+
+  "scraping": {
+    "enabled": false,
+    "phase": 2,
+    "_p2_item": "P2.02",
+    "allowDynamicScrapingMode": true,
+    "outputFormat": "json",
+    "supportedOutputFormats": ["json", "csv", "ndjson"],
+    "outputDir": "test-results/scraping",
+    "patterns": {
+      "pagination": { "enabled": true, "maxPages": 20, "pageParam": "page" },
+      "infiniteScroll": { "enabled": true, "maxScrolls": 15, "itemCountStableIterations": 2 },
+      "modalExtraction": { "enabled": true, "openDelayMs": 300 },
+      "lazyLoadedImages": { "enabled": true, "scrollBeforeExtract": true }
+    },
+    "resilientSelectors": {
+      "preferSemantic": true,
+      "autoRepairOnDrift": true,
+      "maxLocatorFallbacks": 3
+    },
+    "rateLimiting": {
+      "enabled": true,
+      "requestsPerSecond": 2,
+      "jitterMs": 500
+    },
+    "authenticatedScraping": {
+      "enabled": false,
+      "reuseStorageState": true,
+      "storageStatePath": "playwright/.auth/user.json"
+    },
+    "allowedDomains": [],
+    "robotsTxtRespect": true,
+    "userAgent": "PlaywrightEnterpriseScraper/1.0 (+contact@example.com)"
+  },
+
+  "locatorPolicy": {
+    "preferredOrder": [
+      "getByRole",
+      "getByLabel",
+      "getByPlaceholder",
+      "getByText",
+      "getByTestId",
+      "css"
+    ],
+    "forbidCssAsFirstChoice": true,
+    "allowTextOnlyWhenStable": true,
+    "preferAccessibilityMetadata": true,
+    "testIdAttribute": "data-testid",
+    "recommendMissingTestIds": true
+  },
+
+  "frontendContracts": {
+    "reportMissingContracts": true,
+    "reportMissingAccessibilityNames": true,
+    "reportMissingLabels": true,
+    "reportMissingStableTestIds": true,
+    "reportMissingLoadingSignals": true,
+    "reportMissingSuccessErrorSignals": true,
+    "reportDynamicCopyRisk": true,
+    "reportCssSelectorBrittleness": true,
+    "includeRecommendationsInFinalReport": true,
+    "automatedAxeScan": false,
+    "_phase2_note": "Axe-core integration is a phase 2 candidate"
+  },
+
+  "silentFailures": {
+    "enforce": "per-runner-mode",
+    "phase": 1,
+    "failOnConsoleError": "per-runner-mode",
+    "failOnPageError": true,
+    "failOnRequestFailed": "per-runner-mode",
+    "failOnHttpStatusGte": 400,
+    "allowlist": [
+      { "type": "requestfailed", "urlRegex": "/favicon\\.ico$" },
+      { "type": "console", "messageRegex": "^\\[HMR\\]" },
+      { "type": "console", "messageRegex": "DevTools" }
+    ]
+  },
+
+  "cookieConsent": {
+    "enabled": false,
+    "phase": 1,
+    "autoAccept": false,
+    "acceptSelector": "[data-testid='cookie-accept-all']",
+    "appliesBeforeEach": true,
+    "_note": "Enable for EU projects. Selector must match the project's CMP."
+  },
+
+  "gdpr": {
+    "maskPiiInArtifacts": {
+      "local": false,
+      "ci": true
+    },
+    "maskPiiInArtifactsForcedInCi": true,
+    "maskSelectors": [
+      "input[type='email']",
+      "input[name*='phone']",
+      "input[name*='tax_code']",
+      "input[name*='codice_fiscale']",
+      "input[name*='iban']",
+      "input[name*='card']",
+      "input[name*='cvv']",
+      "[data-pii]"
+    ],
+    "networkRequestBodyScrub": false,
+    "networkResponseBodyScrub": false,
+    "_phase2_note": "Trace.zip post-run scrubber for network payloads is phase 2"
+  },
+
+  "visualRegression": {
+    "enabled": false,
+    "phase": 1,
+    "maxDiffPixelRatio": 0.01,
+    "maskingSelectors": [
+      ".price",
+      ".cart-count",
+      ".countdown",
+      ".cookie-banner",
+      "[data-dynamic]",
+      ".timer",
+      ".live-badge"
+    ],
+    "baselineDir": "tests/e2e/__screenshots__",
+    "updateRequiresExplicitFlag": true,
+    "ciUpdateForbidden": true,
+    "screenshotFullPage": false,
+    "threshold": 0.2
+  },
+
+  "perfBudgets": {
+    "enabled": false,
+    "phase": 1,
+    "source": "web-vitals-injected",
+    "budgets": {
+      "home": { "LCP": 2500, "CLS": 0.1, "INP": 200, "TBT": 300, "FCP": 1800 },
+      "pdp":  { "LCP": 2500, "CLS": 0.1, "INP": 200, "TBT": 300, "FCP": 1800 },
+      "plp":  { "LCP": 2800, "CLS": 0.1, "INP": 200, "TBT": 300, "FCP": 2000 },
+      "cart": { "LCP": 2500, "CLS": 0.1, "INP": 200, "TBT": 300, "FCP": 1800 },
+      "checkout": { "LCP": 3000, "CLS": 0.1, "INP": 200, "TBT": 400, "FCP": 2000 }
+    },
+    "failOnBudgetExceededInModes": ["critical-path", "release-gate"],
+    "chainPagespeedReviewOnFailure": true
+  },
+
+  "flakinessAnalytics": {
+    "enabled": false,
+    "phase": 1,
+    "sink": "jsonl",
+    "jsonlPath": "test-results/flakiness-history.jsonl",
+    "rollupPath": "test-results/flakiness-rollup.json",
+    "retentionDays": 30,
+    "includeFields": [
+      "ts",
+      "runId",
+      "runner",
+      "shard",
+      "commit",
+      "branch",
+      "brand",
+      "country",
+      "lang",
+      "testId",
+      "status",
+      "retries",
+      "durationMs",
+      "classification",
+      "flakyReason",
+      "artifacts"
+    ],
+    "schemaVersion": 1,
+    "autoQuarantine": {
+      "enabled": false,
+      "flakyRateThreshold": 0.15,
+      "minRuns": 10,
+      "action": "tag-only"
+    },
+    "webhook": {
+      "enabled": false,
+      "url": null,
+      "method": "POST",
+      "authEnvKey": "PWTEST_FLAKY_WEBHOOK_TOKEN",
+      "payloadFormat": "rollup",
+      "onEvents": ["flaky-detected", "quarantine-triggered"]
+    }
+  },
+
+  "antiPatternLinter": {
+    "enabled": true,
+    "phase": 1,
+    "mode": "warn-only",
+    "failOn": [],
+    "warnOn": [
+      "waitForTimeoutHardcoded",
+      "cssFirstChoice",
+      "nthChildSelector",
+      "volatileTextMatcher",
+      "pageDollarApi",
+      "testOnlyInCI",
+      "skipWithoutIssueRef"
+    ],
+    "_phase2_note": "mode: 'enforce' with pre-commit hook is phase 2"
+  },
+
+  "claudeReport": {
+    "path": "test-results/claude-report.json",
+    "includeSuggestedFixes": true,
+    "includeArtifactRelativePaths": true,
+    "schemaVersion": 1
+  },
+
+  "failureClassification": {
+    "enabled": true,
+    "types": ["test_bug", "app_bug", "environment_bug", "flaky"],
+    "markFlakyWhenPassesOnRetry": true,
+    "quarantineFlakyTests": false,
+    "reportClassificationPerFailure": true,
+    "applyDeterministicPlaybooks": true
+  },
+
+  "artifacts": {
+    "preservePathsInFinalReport": true,
+    "collectTrace": true,
+    "collectScreenshots": true,
+    "collectVideoForCriticalFailures": true,
+    "collectHtmlReportInCI": true,
+    "collectJsonReportInCI": true,
+    "artifactDirectories": {
+      "htmlReport": "playwright-report",
+      "jsonReport": "test-results/results.json",
+      "claudeReport": "test-results/claude-report.json",
+      "flakinessHistory": "test-results/flakiness-history.jsonl",
+      "appCodeChangeLog": "test-results/app-code-changes.log",
+      "artifacts": "test-results/artifacts",
+      "traces": "test-results/artifacts/traces",
+      "screenshots": "test-results/artifacts/screenshots",
+      "videos": "test-results/artifacts/videos"
+    }
+  },
+
+  "reporting": {
+    "includeDetectedStack": true,
+    "includeRunnerMode": true,
+    "includeMode": true,
+    "includeCommandsUsed": true,
+    "includeConfigSourcePrecedence": true,
+    "includeTouchedFiles": true,
+    "includePassFailSummary": true,
+    "includeFlakySummary": true,
+    "includeFailureClassification": true,
+    "includeArtifactPaths": true,
+    "includeAppBugsFound": true,
+    "includeTestBugsFound": true,
+    "includeFrontendContractFindings": true,
+    "includeSilentFailuresFound": true,
+    "includeVisualDiffs": true,
+    "includePerfBudgetViolations": true,
+    "includeSuggestedFollowUps": true
+  },
+
+  "skillInvocation": {
+    "autoTriggerViaDescription": false,
+    "slashCommand": "/playwright-tester",
+    "agent": "playwright-enterprise-tester",
+    "chainedSkills": {
+      "onFrontendChange": null,
+      "onPerfBudgetViolation": null
+    }
+  },
+
+  "crossTabPopup": {
+    "enabled": false,
+    "phase": 2,
+    "_p2_item": "P2.01",
+    "_doc": "Cross-tab/popup/iframe handling for OAuth, 3DS, payment gateway flows.",
+    "waitForNewPageTimeoutMs": 15000,
+    "iframeHandling": {
+      "enabled": true,
+      "waitForFrameLoadMs": 3000,
+      "knownGatewayFrames": [
+        { "name": "stripe-3ds", "urlRegex": "js\\.stripe\\.com|hooks\\.stripe\\.com" },
+        { "name": "paypal-checkout", "urlRegex": "paypal\\.com|paypalobjects\\.com" },
+        { "name": "braintree", "urlRegex": "braintreegateway\\.com" },
+        { "name": "satispay", "urlRegex": "satispay\\.com" },
+        { "name": "scalapay", "urlRegex": "scalapay\\.com" }
+      ]
+    },
+    "popupHandling": {
+      "enabled": true,
+      "autoClosePopupsAfterInit": false,
+      "captureConsoleFromPopup": true,
+      "popupReadySelector": "[data-gateway-state='ready']"
+    },
+    "oauthFlows": {
+      "enabled": false,
+      "providers": []
+    },
+    "checkoutCheckpointMode": {
+      "stopAtGatewayInit": false,
+      "stopAtIframeLoaded": false,
+      "completeSandboxPayment": false
+    }
+  },
+
+  "githubIssueBot": {
+    "enabled": false,
+    "phase": 2,
+    "_p2_item": "P2.03",
+    "_doc": "Auto-create GitHub issues for classified app_bug failures in CI.",
+    "triggerClassifications": ["app_bug"],
+    "minRunnerMode": "ci",
+    "repository": null,
+    "authTokenEnvKey": "GITHUB_TOKEN",
+    "labels": ["e2e-failure", "auto-reported", "playwright"],
+    "assignees": [],
+    "titleTemplate": "[E2E {runner}] {classification}: {testTitle}",
+    "deduplicateWithinHours": 24,
+    "dryRun": false,
+    "attachArtifactUrls": true
+  },
+
+  "testImpactAnalysis": {
+    "enabled": false,
+    "phase": 2,
+    "_p2_item": "P2.04",
+    "_doc": "Heuristic test selection based on git diff. Maps changed files to relevant test specs.",
+    "strategy": "git-diff-heuristic",
+    "baseBranch": "master",
+    "diffTarget": "HEAD...master",
+    "fallbackOnEmptyDiff": "all-smoke",
+    "fileToTestMap": [
+      { "pattern": "resources/frontend/**/cart*.js", "tests": ["tests/e2e/cart.spec.ts", "tests/e2e/critical-path.spec.ts"] },
+      { "pattern": "resources/frontend/**/checkout*.js", "tests": ["tests/e2e/checkout.spec.ts", "tests/e2e/critical-path.spec.ts"] },
+      { "pattern": "resources/frontend/**/home*.js", "tests": ["tests/e2e/home.spec.ts", "tests/e2e/smoke.spec.ts"] },
+      { "pattern": "resources/frontend/**/pdp*.js", "tests": ["tests/e2e/pdp.spec.ts"] },
+      { "pattern": "resources/frontend/**/plp*.js", "tests": ["tests/e2e/plp.spec.ts"] },
+      { "pattern": "app/Domain/Cart/**/*.php", "tests": ["tests/e2e/cart.spec.ts", "tests/e2e/critical-path.spec.ts"] },
+      { "pattern": "app/Domain/Checkout/**/*.php", "tests": ["tests/e2e/checkout.spec.ts"] },
+      { "pattern": "app/Domain/Catalog/**/*.php", "tests": ["tests/e2e/pdp.spec.ts", "tests/e2e/plp.spec.ts"] },
+      { "pattern": "resources/views/frontend/**/*.blade.php", "tests": ["tests/e2e/smoke.spec.ts"] }
+    ],
+    "alwaysRunOnChanges": [
+      "playwright.config.ts",
+      ".playwright-tester.json",
+      "tests/support/**"
+    ],
+    "outputPath": "test-results/impact-selection.json"
+  },
+
+  "linterEnforce": {
+    "enabled": false,
+    "phase": 2,
+    "_p2_item": "P2.05",
+    "_doc": "Promote antiPatternLinter from warn-only to enforce mode with pre-commit hook.",
+    "mode": "enforce",
+    "failOn": [
+      "waitForTimeoutHardcoded",
+      "testOnlyInCI",
+      "pageDollarApi",
+      "skipWithoutIssueRef",
+      "hardcodedCredentials"
+    ],
+    "warnOn": [
+      "cssFirstChoice",
+      "nthChildSelector",
+      "volatileTextMatcher"
+    ],
+    "preCommitHook": {
+      "enabled": false,
+      "hookManager": "husky",
+      "hookPath": ".husky/pre-commit",
+      "runOnStaged": true
+    },
+    "ciGate": {
+      "enabled": true,
+      "failJobOnViolation": true
+    }
+  },
+
+  "codeownersIntegration": {
+    "enabled": false,
+    "phase": 2,
+    "_p2_item": "P2.06",
+    "_doc": "Map test files to owner teams via CODEOWNERS, notify on failure.",
+    "codeownersFile": ".github/CODEOWNERS",
+    "ownerToNotificationChannel": {
+      "@myorg/frontend-team": "#frontend-alerts",
+      "@myorg/cart-team": "#cart-alerts",
+      "@myorg/checkout-team": "#checkout-alerts",
+      "@myorg/platform-team": "#platform-alerts"
+    },
+    "fallbackOwner": "@myorg/platform-team",
+    "includeOwnerInReport": true,
+    "notifyOnFailureOnly": true
+  },
+
+  "offlineAirGapped": {
+    "enabled": false,
+    "phase": 2,
+    "_p2_item": "P2.07",
+    "_doc": "Offline / air-gapped environment support. Pin Playwright, cache browsers locally.",
+    "mirrorBaseUrl": null,
+    "pinnedPlaywrightVersion": "1.48.0",
+    "pinnedChromiumRevision": null,
+    "localBrowserCachePath": "~/.cache/ms-playwright",
+    "skipDownloadIfCached": true,
+    "offlineModeEnvKey": "PWTEST_OFFLINE"
+  },
+
+  "quarantineWorkflow": {
+    "enabled": false,
+    "phase": 2,
+    "_p2_item": "P2.08",
+    "_doc": "Automated test retirement: detect chronic flaky tests and propose PR to quarantine.",
+    "flakyRateThreshold": 0.15,
+    "minRuns": 20,
+    "windowDays": 14,
+    "action": "tag-only",
+    "availableActions": ["tag-only", "add-tag", "skip-with-comment", "create-pr"],
+    "quarantineTag": "@quarantine",
+    "issueRefRequired": true,
+    "autoCreatePR": {
+      "enabled": false,
+      "branchPrefix": "auto-quarantine/",
+      "labels": ["test-maintenance", "quarantine"],
+      "reviewers": []
+    },
+    "removalAfterDaysWithoutFix": 60,
+    "removalAction": "propose-pr"
+  },
+
+  "aiRootCauseAnalyzer": {
+    "enabled": false,
+    "phase": 2,
+    "_p2_item": "P2.10",
+    "_doc": "AI-powered root cause analysis reading trace.zip + source code. Uses Claude API.",
+    "apiProvider": "anthropic",
+    "apiKeyEnvKey": "ANTHROPIC_API_KEY",
+    "model": "claude-sonnet-4-6",
+    "maxTokensPerAnalysis": 4000,
+    "analyzeOnClassifications": ["app_bug", "flaky"],
+    "includeSources": ["trace", "screenshot", "pageDom", "nearbySourceFiles"],
+    "maxSourceFilesIncluded": 5,
+    "outputPath": "test-results/ai-rca.json",
+    "dryRun": false,
+    "rateLimitPerHour": 20,
+    "_cost_note": "Each analysis costs tokens. Use dryRun=true to preview without calling the API."
+  },
+
+  "slackTeamsNotifications": {
+    "enabled": false,
+    "phase": 2,
+    "_p2_item": "P2.11",
+    "_doc": "Send notifications on classified failures via Slack/Teams webhook.",
+    "provider": "slack",
+    "availableProviders": ["slack", "teams", "generic-webhook"],
+    "webhookUrl": null,
+    "webhookUrlEnvKey": "PWTEST_NOTIFY_WEBHOOK_URL",
+    "triggerOn": ["failure", "flaky-spike", "perf-budget-violation"],
+    "mentionOnFailure": [],
+    "includeArtifactLinks": true,
+    "includeClassification": true,
+    "minRunnerMode": "ci",
+    "retryOnSendFailure": 2,
+    "dryRun": false
+  },
+
+  "axeA11y": {
+    "enabled": false,
+    "phase": 2,
+    "_p2_item": "P2.12",
+    "_doc": "Automated accessibility scanning via @axe-core/playwright. WCAG 2.1 AA by default.",
+    "axePackage": "@axe-core/playwright",
+    "wcagTags": ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"],
+    "failOnSeverity": ["critical", "serious"],
+    "warnOnSeverity": ["moderate", "minor"],
+    "includePagesInModes": ["a11y-scan", "release-gate"],
+    "excludeSelectors": [
+      ".cookie-banner",
+      "[data-a11y-exempt]"
+    ],
+    "rules": {
+      "disable": [],
+      "enable": []
+    },
+    "outputPath": "test-results/axe-violations.json",
+    "attachReportToHtmlReport": true
+  },
+
+  "lighthouseCiIntegration": {
+    "enabled": false,
+    "phase": 2,
+    "_p2_item": "P2.14",
+    "_doc": "External Lighthouse CI integration for full performance audits. Complements web-vitals-injected perfBudgets.",
+    "lighthousePackage": "lighthouse",
+    "mode": "standalone-job",
+    "availableModes": ["standalone-job", "inline-test", "post-run-hook"],
+    "chromeFlags": ["--headless=new", "--no-sandbox", "--disable-gpu"],
+    "categories": ["performance", "accessibility", "best-practices", "seo"],
+    "thresholds": {
+      "performance": 85,
+      "accessibility": 90,
+      "best-practices": 85,
+      "seo": 90
+    },
+    "pagesToAudit": [
+      { "name": "home", "url": "/" },
+      { "name": "pdp", "url": "/p/example-product" },
+      { "name": "plp", "url": "/c/example-category" },
+      { "name": "cart", "url": "/cart" }
+    ],
+    "outputDir": "test-results/lighthouse",
+    "runFrequency": "release-gate-only"
+  },
+
+  "mobileDesktopMatrix": {
+    "enabled": false,
+    "phase": 2,
+    "_p2_item": "P2.15",
+    "_doc": "Separate perf budgets and device emulation for mobile and desktop. Extends phase 1 perfBudgets.",
+    "devices": [
+      { "name": "desktop-chrome", "viewport": { "width": 1920, "height": 1080 }, "deviceScaleFactor": 1, "enabled": true },
+      { "name": "mobile-chrome", "device": "Pixel 7", "enabled": true },
+      { "name": "tablet-chrome", "device": "iPad (gen 7) landscape", "enabled": false }
+    ],
+    "budgetsPerDevice": {
+      "desktop-chrome": {
+        "home":     { "LCP": 1500, "CLS": 0.1, "INP": 100, "TBT": 200, "FCP": 1200 },
+        "pdp":      { "LCP": 1500, "CLS": 0.1, "INP": 100, "TBT": 200, "FCP": 1200 },
+        "plp":      { "LCP": 1800, "CLS": 0.1, "INP": 100, "TBT": 200, "FCP": 1400 },
+        "cart":     { "LCP": 1500, "CLS": 0.1, "INP": 100, "TBT": 200, "FCP": 1200 },
+        "checkout": { "LCP": 2000, "CLS": 0.1, "INP": 100, "TBT": 300, "FCP": 1500 }
+      },
+      "mobile-chrome": {
+        "home":     { "LCP": 2500, "CLS": 0.1, "INP": 200, "TBT": 300, "FCP": 1800 },
+        "pdp":      { "LCP": 2500, "CLS": 0.1, "INP": 200, "TBT": 300, "FCP": 1800 },
+        "plp":      { "LCP": 2800, "CLS": 0.1, "INP": 200, "TBT": 300, "FCP": 2000 },
+        "cart":     { "LCP": 2500, "CLS": 0.1, "INP": 200, "TBT": 300, "FCP": 1800 },
+        "checkout": { "LCP": 3000, "CLS": 0.1, "INP": 200, "TBT": 400, "FCP": 2000 }
+      }
+    },
+    "throttling": {
+      "mobile": { "cpuSlowdown": 4, "network": "slow-3g" },
+      "desktop": { "cpuSlowdown": 1, "network": "none" }
+    }
+  },
+
+  "crossBrowser": {
+    "enabled": false,
+    "phase": 2,
+    "_p2_item": "P2.16",
+    "_doc": "Cross-browser matrix. Default: chromium + webkit (Safari/iOS). Firefox NOT included per user choice.",
+    "browsers": [
+      { "name": "chromium", "enabled": true, "project": "chromium" },
+      { "name": "webkit", "enabled": true, "project": "webkit" },
+      { "name": "firefox", "enabled": false, "project": "firefox" }
+    ],
+    "runInModes": {
+      "smoke": ["chromium"],
+      "critical-path": ["chromium", "webkit"],
+      "release-gate": ["chromium", "webkit"],
+      "nightly": ["chromium", "webkit"]
+    },
+    "webkitSpecificNotes": {
+      "baselineForVisualRegression": "separate per browser",
+      "thirdPartyCompatibility": "Some analytics scripts may fail in webkit ITP mode"
+    }
+  },
+
+  "gdprTraceScrubber": {
+    "enabled": false,
+    "phase": 2,
+    "_p2_item": "P2.17",
+    "_doc": "Post-run scrubber for trace.zip network payloads. Removes PII from captured request/response bodies.",
+    "scrubOnRunnerModes": ["ci"],
+    "scrubRequestBodies": true,
+    "scrubResponseBodies": true,
+    "piiPatterns": [
+      { "name": "email", "regex": "[\\w.-]+@[\\w.-]+\\.[a-zA-Z]{2,}" },
+      { "name": "iban", "regex": "[A-Z]{2}\\d{2}[A-Z0-9]{1,30}" },
+      { "name": "italian-tax-code-example", "regex": "[A-Z]{6}\\d{2}[A-Z]\\d{2}[A-Z]\\d{3}[A-Z]" },
+      { "name": "credit-card", "regex": "\\b(?:\\d[ -]*?){13,16}\\b" },
+      { "name": "phone", "regex": "\\+?\\d{1,3}[\\s-]?\\d{2,4}[\\s-]?\\d{3,4}[\\s-]?\\d{3,4}" }
+    ],
+    "scrubReplacement": "[REDACTED]",
+    "scrubMetadataFields": ["authorization", "cookie", "set-cookie", "x-api-key"],
+    "inPlace": false,
+    "outputSuffix": ".scrubbed.zip",
+    "dryRun": false
+  },
+
+  "swarmMode": {
+    "enabled": false,
+    "phase": 2,
+    "_p2_item": "P2.18",
+    "_doc": "Parallel sub-agent orchestration for test authoring. Spawns multiple agents by concern.",
+    "maxConcurrentAgents": 3,
+    "concerns": [
+      { "name": "happy-path", "tag": "@smoke @critical", "enabled": true },
+      { "name": "validation-edge", "tag": "@validation @edge", "enabled": true },
+      { "name": "auth-protected", "tag": "@auth", "enabled": false },
+      { "name": "visual-a11y", "tag": "@visual @a11y", "enabled": false }
+    ],
+    "mergeStrategy": "concatenate-specs",
+    "timeoutMinutesPerAgent": 15,
+    "orchestratorScript": ".claude/skills/playwright-enterprise-tester/scripts/swarm-orchestrator.mjs"
+  },
+
+  "dashboardIntegration": {
+    "enabled": false,
+    "phase": 2,
+    "_p2_item": "P2.09",
+    "_doc": "Push run data to an external dashboard (standalone CF Worker). Spec: docs/DASHBOARD-SPEC.md (in the plugin). No runtime implementation in this repo.",
+    "endpoint": null,
+    "endpointEnvKey": "PWTEST_DASHBOARD_URL",
+    "authTokenEnvKey": "PWTEST_DASHBOARD_TOKEN",
+    "pushOnEvents": ["run-complete"],
+    "includeFlakinessRollup": true,
+    "includeClaudeReport": true,
+    "repoIdentifier": "my-project",
+    "schemaVersion": 1
+  },
+
+  "envOverrides": {
+    "PWTEST_ENABLED": "enabled",
+    "PWTEST_RUNNER_MODE": "runner.activeMode",
+    "PWTEST_MODE": "mode.default",
+    "PWTEST_BASE_URL": "execution.baseURL",
+    "PWTEST_START_COMMAND": "execution.startCommand",
+    "PWTEST_FRONTEND_COMMAND": "execution.frontendCommand",
+    "PWTEST_WORKDIR": "execution.workingDirectory",
+    "PWTEST_TRACE": "runner.modes.*.traceDefault",
+    "PWTEST_SCREENSHOT": "runner.modes.*.screenshotDefault",
+    "PWTEST_VIDEO_LOCAL": "runner.modes.local.videoDefault",
+    "PWTEST_VIDEO_CI": "runner.modes.ci.videoDefault",
+    "PWTEST_HTML_REPORT": "runner.modes.ci.htmlReport",
+    "PWTEST_JSON_REPORT": "runner.modes.ci.reporters",
+    "PWTEST_FIX_APP_CODE": "governance.fixAppCode",
+    "PWTEST_FIX_TESTS_ONLY": "governance.fixTestsOnly",
+    "PWTEST_MAX_FIX_ATTEMPTS": "governance.maxFixAttempts",
+    "PWTEST_VISUAL_REGRESSION": "visualRegression.enabled",
+    "PWTEST_PERF_BUDGETS": "perfBudgets.enabled",
+    "PWTEST_FLAKY_WEBHOOK_TOKEN": "flakinessAnalytics.webhook.authEnvKey",
+    "PWTEST_USER_EMAIL": "testData.precreatedUsers.user.envKey",
+    "PWTEST_USER_PASSWORD": "testData.precreatedUsers.user.envPassKey",
+    "PWTEST_ADMIN_EMAIL": "testData.precreatedUsers.admin.envKey",
+    "PWTEST_ADMIN_PASSWORD": "testData.precreatedUsers.admin.envPassKey",
+    "PWTEST_BRAND": "multiTenant.activeBrand",
+    "PWTEST_COUNTRY": "multiTenant.activeCountry",
+    "PWTEST_LANG": "multiTenant.activeLanguage",
+    "PWTEST_OFFLINE": "offlineAirGapped.enabled",
+    "GITHUB_TOKEN": "githubIssueBot.authTokenEnvKey",
+    "ANTHROPIC_API_KEY": "aiRootCauseAnalyzer.apiKeyEnvKey",
+    "PWTEST_NOTIFY_WEBHOOK_URL": "slackTeamsNotifications.webhookUrl",
+    "PWTEST_DASHBOARD_URL": "dashboardIntegration.endpoint",
+    "PWTEST_DASHBOARD_TOKEN": "dashboardIntegration.authTokenEnvKey",
+    "PWTEST_SWARM_ENABLED": "swarmMode.enabled",
+    "PWTEST_CROSS_BROWSER": "crossBrowser.enabled",
+    "PWTEST_MOBILE_MATRIX": "mobileDesktopMatrix.enabled",
+    "PWTEST_AXE_A11Y": "axeA11y.enabled",
+    "PWTEST_LIGHTHOUSE": "lighthouseCiIntegration.enabled",
+    "PWTEST_GDPR_SCRUBBER": "gdprTraceScrubber.enabled",
+    "PWTEST_LINTER_ENFORCE": "linterEnforce.enabled",
+    "PWTEST_TEST_IMPACT": "testImpactAnalysis.enabled",
+    "PWTEST_QUARANTINE": "quarantineWorkflow.enabled"
+  },
+
+  "notes": {
+    "customConfigFilePurpose": "Repository-level policy for the AI skill. NOT read by Playwright itself. Safely contains custom keys.",
+    "playwrightConfigPurpose": "Native Playwright runtime configuration MUST remain in playwright.config.*. The skill translates relevant values from this file into Playwright config or CLI flags.",
+    "documentationPath": "docs/playwright-enterprise-tester/README.md",
+    "phase2RoadmapPath": "skills/playwright-enterprise-tester/references/phase2-roadmap.md",
+    "phase2Implemented": "All 17 P2 items (excluding P2.13 API testing) are implemented as phase 2. All features are disabled by default (enabled: false) and can be toggled independently. See CONFIGURATION.md in the plugin docs for usage.",
+    "phase2Skipped": "P2.13 API testing via request fixture is NOT implemented per user decision. Can be added in phase 3 if needed.",
+    "dashboardSpecPath": "docs/DASHBOARD-SPEC.md (in the plugin)"
+  }
+}

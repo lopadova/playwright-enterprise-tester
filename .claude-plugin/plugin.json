@@ -1,0 +1,94 @@
+{
+  "$schema": "https://claude.ai/schemas/plugin.v1.json",
+  "name": "playwright-enterprise-tester",
+  "version": "1.0.0",
+  "description": "Enterprise-grade Playwright E2E testing plugin for Claude Code. Multi-stack autodetect (Laravel, Next.js, Bun, Cloudflare Workers, monorepos). Two runner modes (local vs CI). 17 opt-in phase 2 features: visual regression, performance budgets, cross-browser, axe a11y, Lighthouse, AI root cause analyzer, swarm mode, scraping, quarantine workflow, GitHub issue bot, Slack notifications, CODEOWNERS routing, and more. All toggleable via .playwright-tester.json with defensive-minimal defaults.",
+  "author": {
+    "name": "Lorenzo Padovani Padosoft",
+    "url": "https://github.com/lopadova"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lopadova/playwright-enterprise-tester"
+  },
+  "homepage": "https://github.com/lopadova/playwright-enterprise-tester",
+  "bugs": {
+    "url": "https://github.com/lopadova/playwright-enterprise-tester/issues"
+  },
+  "keywords": [
+    "playwright",
+    "e2e",
+    "browser",
+    "testing",
+    "visual-regression",
+    "perf-budget",
+    "accessibility",
+    "a11y",
+    "axe",
+    "lighthouse",
+    "cross-browser",
+    "laravel",
+    "nextjs",
+    "bun",
+    "cloudflare-workers",
+    "enterprise",
+    "ci",
+    "github-actions",
+    "flakiness",
+    "quarantine",
+    "ai",
+    "anthropic",
+    "claude",
+    "claude-code",
+    "scraping",
+    "mobile"
+  ],
+  "category": "testing",
+  "components": {
+    "skills": [
+      {
+        "name": "playwright-enterprise-tester",
+        "path": "skills/playwright-enterprise-tester/SKILL.md",
+        "activation": "explicit"
+      }
+    ],
+    "agents": [
+      {
+        "name": "playwright-enterprise-tester",
+        "path": "agents/playwright-enterprise-tester.md"
+      }
+    ],
+    "commands": [
+      {
+        "name": "playwright-tester",
+        "path": "commands/playwright-tester.md"
+      }
+    ]
+  },
+  "installHook": "scripts/install.mjs",
+  "minClaudeCodeVersion": "1.0.0",
+  "peerDependencies": {
+    "@playwright/test": ">=1.40.0"
+  },
+  "optionalPeerDependencies": {
+    "@axe-core/playwright": ">=4.8.0 (for P2.12 Axe a11y)",
+    "lighthouse": ">=11.0.0 (for P2.14 Lighthouse CI)",
+    "chrome-launcher": ">=1.0.0 (for P2.14 Lighthouse CI)",
+    "husky": ">=9.0.0 (for P2.05 pre-commit hook)",
+    "jszip": ">=3.10.0 (for P2.17 GDPR trace scrubber full impl)",
+    "web-vitals": ">=3.0.0 (for phase 1 perf-budget mode)"
+  },
+  "documentation": {
+    "readme": "README.md",
+    "onboarding": "docs/ONBOARDING.md",
+    "configuration": "docs/CONFIGURATION.md",
+    "phase2": "docs/PHASE-2-FEATURES.md",
+    "phase3": "docs/PHASE-3-ROADMAP.md",
+    "dashboard": "docs/DASHBOARD-SPEC.md",
+    "architecture": "docs/ARCHITECTURE.md",
+    "migration": "docs/MIGRATION.md",
+    "contributing": "CONTRIBUTING.md",
+    "changelog": "CHANGELOG.md"
+  }
+}

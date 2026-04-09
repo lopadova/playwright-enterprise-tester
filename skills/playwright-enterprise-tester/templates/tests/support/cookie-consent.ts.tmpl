@@ -1,0 +1,35 @@
+// Cookie consent auto-accept fixture.
+// Activate via cookieConsent.autoAccept=true in .playwright-tester.json.
+// Customize the selector to match the project's CMP (Consent Management Platform).
+
+import { test as base } from '@playwright/test';
+
+export const test = base.extend<{ autoAcceptCookies: void }>({
+  autoAcceptCookies: [
+    async ({ page }, use) => {
+      // Run before each test automatically
+      await page.addInitScript(() => {
+        // Pre-set consent cookie to avoid banner flicker
+        // Customize the cookie name to match your CMP (e.g. 'OptanonConsent', 'cookieyes-consent')
+        try {
+          document.cookie = 'cookie_consent=accepted; path=/; max-age=31536000';
+        } catch {}
+      });
+
+      // Also listen for the banner and click accept if it appears
+      page.on('load', async () => {
+        const selector = process.env.PWTEST_COOKIE_ACCEPT_SELECTOR
+          ?? "[data-testid='cookie-accept-all']";
+        const btn = page.locator(selector).first();
+        if (await btn.isVisible({ timeout: 500 }).catch(() => false)) {
+          await btn.click().catch(() => { /* already dismissed */ });
+        }
+      });
+
+      await use();
+    },
+    { auto: true },
+  ],
+});
+
+export { expect } from '@playwright/test';

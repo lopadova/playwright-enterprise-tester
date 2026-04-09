@@ -1,0 +1,31 @@
+#!/usr/bin/env sh
+# Playwright Enterprise Tester pre-commit hook (P2.05).
+# Runs the anti-pattern linter in enforce mode on staged spec files.
+#
+# Install via:
+#   npm install -D husky
+#   npx husky install
+#   cp .claude/skills/playwright-enterprise-tester/templates/.husky/pre-commit.tmpl .husky/pre-commit
+#   chmod +x .husky/pre-commit
+
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Find staged spec files
+STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(spec|test)\.(ts|js|mjs)$' || true)
+
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+echo "Running playwright-enterprise-tester lint on staged test files..."
+node .claude/skills/playwright-enterprise-tester/scripts/lint-tests.mjs --mode=enforce $STAGED
+
+EXIT_CODE=$?
+if [ $EXIT_CODE -ne 0 ]; then
+  echo ""
+  echo "Lint failed. Fix violations above or use:"
+  echo "  git commit --no-verify  (emergency bypass, use sparingly)"
+  exit 1
+fi
+
+exit 0

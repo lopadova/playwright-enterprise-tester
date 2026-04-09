@@ -1,0 +1,149 @@
+// Scraping helpers (P2.02).
+// Usage: import { ScrapingHelper } from './support/scraping-helpers';
+
+import type { Page, Locator } from '@playwright/test';
+import { writeFileSync, mkdirSync, appendFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+
+type ScrapingOptions = {
+  output: string;
+  format?: 'json' | 'csv' | 'ndjson';
+  rateLimitRps?: number;
+  jitterMs?: number;
+  userAgent?: string;
+};
+
+export class ScrapingHelper {
+  private lastRequestAt = 0;
+
+  constructor(private page: Page, private opts: ScrapingOptions) {
+    this.opts.format ??= 'json';
+    this.opts.rateLimitRps ??= 2;
+    this.opts.jitterMs ??= 500;
+  }
+
+  async throttle(): Promise<void> {
+    const minGap = 1000 / this.opts.rateLimitRps!;
+    const elapsed = Date.now() - this.lastRequestAt;
+    const wait = Math.max(0, minGap - elapsed) + Math.random() * this.opts.jitterMs!;
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    this.lastRequestAt = Date.now();
+  }
+
+  async checkRobotsTxtOrThrow(): Promise<void> {
+    const url = new URL(this.page.url());
+    const robotsUrl = `${url.protocol}//${url.host}/robots.txt`;
+    try {
+      const resp = await this.page.request.get(robotsUrl, { timeout: 5000 });
+      if (!resp.ok()) return; // no robots.txt = allow
+      const text = await resp.text();
+      const path = url.pathname;
+      // Extremely simple robots.txt parser: look for Disallow: lines
+      const lines = text.split('\n');
+      let inUserAgent = false;
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.toLowerCase().startsWith('user-agent:')) {
+          const ua = trimmed.substring(11).trim();
+          inUserAgent = ua === '*' || ua.toLowerCase() === (this.opts.userAgent ?? '').toLowerCase();
+        } else if (inUserAgent && trimmed.toLowerCase().startsWith('disallow:')) {
+          const disallowPath = trimmed.substring(9).trim();
+          if (disallowPath && path.startsWith(disallowPath)) {
+            throw new Error(`robots.txt disallows ${path} (rule: Disallow: ${disallowPath})`);
+          }
+        }
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('robots.txt disallows')) throw err;
+      // Other errors (timeout, etc.) = allow with warning
+      console.warn(`Could not verify robots.txt: ${err}`);
+    }
+  }
+
+  async scrapePagination<T>(params: {
+    itemSelector: string;
+    extractFn: (locator: Locator) => Promise<T>;
+    nextPageSelector: string;
+    maxPages?: number;
+  }): Promise<T[]> {
+    const results: T[] = [];
+    const maxPages = params.maxPages ?? 20;
+    let pageCount = 0;
+
+    while (pageCount < maxPages) {
+      await this.throttle();
+      const items = await this.page.locator(params.itemSelector).all();
+      for (const item of items) {
+        results.push(await params.extractFn(item));
+      }
+
+      const nextBtn = this.page.locator(params.nextPageSelector).first();
+      if (!(await nextBtn.isVisible().catch(() => false))) break;
+
+      await Promise.all([
+        this.page.waitForLoadState('domcontentloaded'),
+        nextBtn.click()
+      ]);
+      pageCount++;
+    }
+
+    return results;
+  }
+
+  async scrapeInfiniteScroll<T>(params: {
+    itemSelector: string;
+    extractFn: (locator: Locator) => Promise<T>;
+    maxScrolls?: number;
+    stableForIterations?: number;
+  }): Promise<T[]> {
+    const maxScrolls = params.maxScrolls ?? 15;
+    const stableFor = params.stableForIterations ?? 2;
+    let lastCount = 0;
+    let stableCount = 0;
+
+    for (let i = 0; i < maxScrolls; i++) {
+      await this.throttle();
+      const currentCount = await this.page.locator(params.itemSelector).count();
+      if (currentCount === lastCount) {
+        stableCount++;
+        if (stableCount >= stableFor) break;
+      } else {
+        stableCount = 0;
+      }
+      lastCount = currentCount;
+      await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await this.page.waitForTimeout(800);
+    }
+
+    const items = await this.page.locator(params.itemSelector).all();
+    const results: T[] = [];
+    for (const item of items) {
+      results.push(await params.extractFn(item));
+    }
+    return results;
+  }
+
+  async writeOutput<T>(data: T[]): Promise<void> {
+    mkdirSync(dirname(this.opts.output), { recursive: true });
+
+    if (this.opts.format === 'json') {
+      writeFileSync(this.opts.output, JSON.stringify(data, null, 2));
+    } else if (this.opts.format === 'ndjson') {
+      const lines = data.map(d => JSON.stringify(d)).join('\n');
+      writeFileSync(this.opts.output, lines + '\n');
+    } else if (this.opts.format === 'csv') {
+      if (data.length === 0) {
+        writeFileSync(this.opts.output, '');
+      } else {
+        const headers = Object.keys(data[0] as any);
+        const rows = data.map(d =>
+          headers.map(h => {
+            const v = String((d as any)[h] ?? '');
+            return `"${v.replace(/"/g, '""')}"`;
+          }).join(',')
+        );
+        writeFileSync(this.opts.output, headers.join(',') + '\n' + rows.join('\n'));
+      }
+    }
+  }
+}

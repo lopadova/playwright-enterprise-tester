@@ -1,0 +1,45 @@
+// Axe a11y fixture (P2.12). Requires @axe-core/playwright.
+//
+// Installation:
+//   npm install -D @axe-core/playwright
+//
+// Usage: import { test, expect } from './support/axe-fixture';
+
+import { test as base, expect, type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+type AxeHelper = {
+  scan: (options?: { exclude?: string[]; include?: string[] }) => Promise<ReturnType<AxeBuilder['analyze']>>;
+  failOnCriticalOrSerious: (results: Awaited<ReturnType<AxeBuilder['analyze']>>) => void;
+};
+
+const DEFAULT_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
+const DEFAULT_EXCLUDES = ['.cookie-banner', '[data-a11y-exempt]'];
+
+export const test = base.extend<{ axe: AxeHelper }>({
+  axe: async ({ page }, use) => {
+    const helper: AxeHelper = {
+      scan: async (options = {}) => {
+        let builder = new AxeBuilder({ page }).withTags(DEFAULT_TAGS);
+        for (const sel of DEFAULT_EXCLUDES) builder = builder.exclude(sel);
+        for (const sel of options.exclude ?? []) builder = builder.exclude(sel);
+        for (const sel of options.include ?? []) builder = builder.include(sel);
+        return await builder.analyze();
+      },
+      failOnCriticalOrSerious: (results) => {
+        const violations = results.violations.filter(v =>
+          ['critical', 'serious'].includes(v.impact ?? '')
+        );
+        if (violations.length > 0) {
+          const report = violations.map(v =>
+            `[${v.impact}] ${v.id}: ${v.description}\n  ${v.nodes.length} node(s)`
+          ).join('\n');
+          throw new Error(`Axe a11y violations:\n${report}`);
+        }
+      }
+    };
+    await use(helper);
+  }
+});
+
+export { expect };

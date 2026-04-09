@@ -1,0 +1,85 @@
+// Performance budget template — uses web-vitals injected at runtime.
+// Opt-in: requires perfBudgets.enabled=true in .playwright-tester.json.
+// Tag: @perf
+
+import { test, expect } from '@playwright/test';
+
+type WebVitalsSnapshot = {
+  LCP?: number;
+  CLS?: number;
+  INP?: number;
+  FCP?: number;
+  TBT?: number;
+};
+
+// Budgets per page type — keep in sync with .playwright-tester.json → perfBudgets.budgets
+const BUDGETS: Record<string, Required<WebVitalsSnapshot>> = {
+  home:     { LCP: 2500, CLS: 0.1, INP: 200, FCP: 1800, TBT: 300 },
+  pdp:      { LCP: 2500, CLS: 0.1, INP: 200, FCP: 1800, TBT: 300 },
+  plp:      { LCP: 2800, CLS: 0.1, INP: 200, FCP: 2000, TBT: 300 },
+  cart:     { LCP: 2500, CLS: 0.1, INP: 200, FCP: 1800, TBT: 300 },
+  checkout: { LCP: 3000, CLS: 0.1, INP: 200, FCP: 2000, TBT: 400 },
+};
+
+async function collectWebVitals(page: import('@playwright/test').Page): Promise<WebVitalsSnapshot> {
+  // Inject web-vitals (self-hosted copy should be bundled; this is the UMD fallback)
+  await page.addScriptTag({
+    url: 'https://unpkg.com/web-vitals@3/dist/web-vitals.iife.js',
+  }).catch(() => { /* fallback: use local bundle */ });
+
+  // Start collection
+  await page.evaluate(() => {
+    (window as any).__pwVitals = {};
+    const wv = (window as any).webVitals;
+    if (!wv) return;
+    wv.onLCP?.((m: any) => { (window as any).__pwVitals.LCP = m.value; });
+    wv.onCLS?.((m: any) => { (window as any).__pwVitals.CLS = m.value; });
+    wv.onINP?.((m: any) => { (window as any).__pwVitals.INP = m.value; });
+    wv.onFCP?.((m: any) => { (window as any).__pwVitals.FCP = m.value; });
+  });
+
+  // Wait for LCP + FCP to settle (they fire after the main content is painted)
+  await page.waitForTimeout(1000);
+
+  // Trigger an interaction to populate INP
+  await page.mouse.click(10, 10);
+  await page.waitForTimeout(500);
+
+  return await page.evaluate(() => (window as any).__pwVitals ?? {});
+}
+
+function assertBudget(actual: WebVitalsSnapshot, budget: Required<WebVitalsSnapshot>, pageType: string) {
+  const violations: string[] = [];
+  for (const metric of Object.keys(budget) as Array<keyof WebVitalsSnapshot>) {
+    const a = actual[metric];
+    const b = budget[metric];
+    if (a === undefined) continue; // metric not measured (e.g., INP without interaction)
+    if (a > b) {
+      violations.push(`${metric}: ${a.toFixed(0)}${metric === 'CLS' ? '' : 'ms'} > ${b}${metric === 'CLS' ? '' : 'ms'}`);
+    }
+  }
+  if (violations.length > 0) {
+    throw new Error(`[${pageType}] Perf budget violations:\n  ${violations.join('\n  ')}`);
+  }
+}
+
+test.describe('perf budgets', () => {
+  test('home LCP/CLS/INP @perf @critical', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+    const vitals = await collectWebVitals(page);
+    assertBudget(vitals, BUDGETS.home, 'home');
+  });
+
+  test('pdp LCP/CLS/INP @perf', async ({ page }) => {
+    // Navigate to a representative PDP
+    await page.goto('/');
+    const firstProduct = page.getByRole('link', { name: /scopri|dettagli/i }).first();
+    await firstProduct.click();
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+    const vitals = await collectWebVitals(page);
+    assertBudget(vitals, BUDGETS.pdp, 'pdp');
+  });
+});

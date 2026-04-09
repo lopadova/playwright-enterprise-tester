@@ -1,0 +1,69 @@
+// Visual regression template.
+// Opt-in: requires visualRegression.enabled=true in .playwright-tester.json.
+// Tag: @visual
+
+import { test, expect } from '@playwright/test';
+import { piiMasks } from '../support/pii-mask';
+
+// Default masking selectors for dynamic areas
+function defaultMasks(page: import('@playwright/test').Page) {
+  return [
+    page.locator('.price'),
+    page.locator('.cart-count'),
+    page.locator('.countdown'),
+    page.locator('.timer'),
+    page.locator('.cookie-banner'),
+    page.locator('[data-dynamic]'),
+    ...piiMasks(page),
+  ];
+}
+
+test.describe('visual regression', () => {
+  test('home hero @visual @critical', async ({ page }, testInfo) => {
+    await page.goto('/');
+
+    // Wait for above-the-fold content to be stable
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+    // Hide potentially animated hero video, if any
+    await page.addStyleTag({
+      content: `
+        *, *::before, *::after { animation-duration: 0s !important; animation-delay: 0s !important; transition-duration: 0s !important; }
+        video { visibility: hidden; }
+      `,
+    });
+
+    const brand = process.env.PWTEST_BRAND ?? 'mybrand';
+    const country = process.env.PWTEST_COUNTRY ?? 'it';
+    const lang = process.env.PWTEST_LANG ?? 'it';
+
+    await expect(page).toHaveScreenshot(
+      `${brand}-${country}-${lang}-home-hero.png`,
+      {
+        mask: defaultMasks(page),
+        maxDiffPixelRatio: 0.01,
+        fullPage: false,
+      }
+    );
+  });
+
+  test('pdp layout @visual', async ({ page }) => {
+    await page.goto('/');
+    const firstProduct = page
+      .getByRole('link', { name: /scopri|dettagli/i })
+      .first();
+    await firstProduct.click();
+
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+    // Stabilize animations
+    await page.addStyleTag({
+      content: `*, *::before, *::after { animation: none !important; transition: none !important; }`,
+    });
+
+    await expect(page).toHaveScreenshot('pdp-layout.png', {
+      mask: defaultMasks(page),
+      maxDiffPixelRatio: 0.01,
+    });
+  });
+});

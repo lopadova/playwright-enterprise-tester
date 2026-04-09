@@ -1,0 +1,56 @@
+// Auth setup project. Logs in each enabled role and saves storage state.
+// Credentials are read from env vars; never hardcode them.
+
+import { test as setup, expect } from '@playwright/test';
+import path from 'path';
+
+const authDir = path.join(__dirname, '..', '..', 'playwright', '.auth');
+
+setup.describe.configure({ mode: 'serial' });
+
+setup('authenticate user', async ({ page }) => {
+  const email = process.env.PWTEST_USER_EMAIL;
+  const password = process.env.PWTEST_USER_PASSWORD;
+  if (!email || !password) {
+    throw new Error(
+      'PWTEST_USER_EMAIL and PWTEST_USER_PASSWORD must be set. ' +
+      'Define them in .env.e2e (local) or GitHub Secrets (CI).'
+    );
+  }
+
+  await page.goto('/account/login');
+
+  await page.getByLabel(/email/i).fill(email);
+  await page.getByLabel(/password/i).fill(password);
+
+  await Promise.all([
+    page.waitForURL(/\/(account|dashboard)/, { timeout: 15_000 }),
+    page.getByRole('button', { name: /accedi|login/i }).click(),
+  ]);
+
+  // Confirm authenticated state
+  await expect(
+    page.getByRole('link', { name: /logout|esci/i })
+  ).toBeVisible({ timeout: 5_000 });
+
+  await page.context().storageState({ path: path.join(authDir, 'user.json') });
+});
+
+// Uncomment when admin role is enabled in .playwright-tester.json
+// setup('authenticate admin', async ({ page }) => {
+//   const email = process.env.PWTEST_ADMIN_EMAIL;
+//   const password = process.env.PWTEST_ADMIN_PASSWORD;
+//   if (!email || !password) {
+//     setup.skip(true, 'PWTEST_ADMIN_EMAIL/PWTEST_ADMIN_PASSWORD not set — skipping admin setup');
+//     return;
+//   }
+//   await page.goto('/admin/login');
+//   await page.getByLabel(/email/i).fill(email);
+//   await page.getByLabel(/password/i).fill(password);
+//   await Promise.all([
+//     page.waitForURL(/\/admin/),
+//     page.getByRole('button', { name: /accedi|login/i }).click(),
+//   ]);
+//   await expect(page.getByRole('link', { name: /logout/i })).toBeVisible();
+//   await page.context().storageState({ path: path.join(authDir, 'admin.json') });
+// });
