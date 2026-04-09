@@ -31,26 +31,60 @@ async function applyMobileThrottling(page: import('@playwright/test').Page) {
   await client.send('Emulation.setCPUThrottlingRate', { rate: 4 });
 }
 
-async function collectWebVitals(page: import('@playwright/test').Page): Promise<WebVitalsSnapshot> {
-  await page.addScriptTag({
-    url: 'https://unpkg.com/web-vitals@3/dist/web-vitals.iife.js'
-  }).catch(() => {});
+// PREFERRED: bundle web-vitals locally (see perf-budget.spec.ts.tmpl header).
+// Override via WEB_VITALS_URL env var. We fail-hard on missing vitals so
+// mobile budgets cannot pass silently when the CDN is blocked.
+// Precedence: explicit WEB_VITALS_URL > baseURL/vendor/ > public CDN fallback.
+function resolveWebVitalsUrl(): string {
+  if (process.env.WEB_VITALS_URL) return process.env.WEB_VITALS_URL;
+  if (process.env.PWTEST_BASE_URL) return `${process.env.PWTEST_BASE_URL}/vendor/web-vitals.iife.js`;
+  return 'https://unpkg.com/web-vitals@3/dist/web-vitals.iife.js';
+}
+const WEB_VITALS_URL = resolveWebVitalsUrl();
 
-  await page.evaluate(() => {
+async function collectWebVitals(page: import('@playwright/test').Page): Promise<WebVitalsSnapshot> {
+  try {
+    await page.addScriptTag({ url: WEB_VITALS_URL });
+  } catch (err) {
+    throw new Error(
+      `[mobile-perf-budget] Failed to load web-vitals from "${WEB_VITALS_URL}". ` +
+      `Bundle it locally or set WEB_VITALS_URL. ` +
+      `Original error: ${(err as Error).message}`
+    );
+  }
+
+  const hasWebVitals = await page.evaluate(() => {
     (window as any).__pwVitals = {};
     const wv = (window as any).webVitals;
-    if (!wv) return;
+    if (!wv) return false;
     wv.onLCP?.((m: any) => { (window as any).__pwVitals.LCP = m.value; });
     wv.onCLS?.((m: any) => { (window as any).__pwVitals.CLS = m.value; });
     wv.onINP?.((m: any) => { (window as any).__pwVitals.INP = m.value; });
     wv.onFCP?.((m: any) => { (window as any).__pwVitals.FCP = m.value; });
+    return true;
   });
+
+  if (!hasWebVitals) {
+    throw new Error(
+      '[mobile-perf-budget] window.webVitals is undefined after script inject. ' +
+      'Check that the URL serves the IIFE build.'
+    );
+  }
 
   await page.waitForTimeout(1000);
   await page.mouse.click(10, 10);
   await page.waitForTimeout(500);
 
-  return await page.evaluate(() => (window as any).__pwVitals ?? {});
+  const snapshot = await page.evaluate(() => (window as any).__pwVitals ?? {});
+
+  if (snapshot.LCP === undefined && snapshot.FCP === undefined) {
+    throw new Error(
+      '[mobile-perf-budget] web-vitals returned no LCP/FCP samples. ' +
+      'Budget enforcement aborted to avoid false-pass.'
+    );
+  }
+
+  return snapshot;
 }
 
 function assertBudget(actual: WebVitalsSnapshot, budget: Required<WebVitalsSnapshot>, pageType: string) {

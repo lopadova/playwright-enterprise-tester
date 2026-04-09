@@ -37,6 +37,14 @@ const concerns = (swarmConfig.concerns ?? []).filter(c => c.enabled);
 const maxConcurrent = swarmConfig.maxConcurrentAgents ?? 3;
 const mergeStrategy = swarmConfig.mergeStrategy ?? 'concatenate-specs';
 
+if (concerns.length === 0) {
+  console.error(
+    'swarmMode.concerns is empty or all concerns are disabled. ' +
+    'Enable at least one concern (e.g., happy-path, edge-cases, a11y) in .playwright-tester.json.'
+  );
+  process.exit(1);
+}
+
 const agentTasks = concerns.map((concern, i) => ({
   agentIndex: i,
   concern: concern.name,

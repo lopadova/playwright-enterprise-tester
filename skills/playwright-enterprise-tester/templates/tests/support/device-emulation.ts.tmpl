@@ -1,7 +1,12 @@
 // Device emulation helper for multi-device perf tests (P2.15).
 // Applies CDP-level CPU + network throttling to match real mobile conditions.
+//
+// CHROMIUM-ONLY: page.context().newCDPSession() is only supported by the
+// Chromium engine. Callers that enable P2.16 crossBrowser (webkit/firefox)
+// must skip perf-budget projects on non-Chromium browsers or this helper
+// will throw a clear error below.
 
-import type { Page, BrowserContext } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 type ThrottleProfile = {
   name: string;
@@ -17,6 +22,15 @@ const NETWORK_PROFILES: Record<string, { latency: number; down: number; up: numb
 };
 
 export async function applyThrottling(page: Page, profile: ThrottleProfile): Promise<void> {
+  const browserName = page.context().browser()?.browserType().name();
+  if (browserName !== 'chromium') {
+    throw new Error(
+      `[device-emulation] applyThrottling requires Chromium (got "${browserName ?? 'unknown'}"). ` +
+      `CDP sessions are not supported on webkit/firefox. Scope perf-budget tests to ` +
+      `chromium-only projects in playwright.config.ts.`
+    );
+  }
+
   const client = await page.context().newCDPSession(page);
   const net = NETWORK_PROFILES[profile.network];
   if (profile.network !== 'none') {

@@ -9,7 +9,10 @@ const runnerMode = process.env.PWTEST_RUNNER_MODE ?? (isCI ? 'ci' : 'local');
 const baseURL = process.env.PWTEST_BASE_URL ?? process.env.APP_URL ?? 'http://127.0.0.1:8000';
 
 export default defineConfig({
-  testDir: './tests/e2e',
+  // testDir is the repo 'tests' root so the setup project can discover
+  // tests/setup/auth.setup.ts alongside tests/e2e/** specs. Each project
+  // below scopes its own files via testMatch/testIgnore.
+  testDir: './tests',
   fullyParallel: true,
   forbidOnly: isCI,
   retries: runnerMode === 'ci' ? 2 : 0,
@@ -17,13 +20,19 @@ export default defineConfig({
   timeout: 30_000,
   expect: { timeout: 7_000 },
 
+  // JSON reporter is always on — scripts/parse-playwright-json.mjs consumes
+  // test-results/results.json to build test-results/claude-report.json in
+  // both local and ci runner modes. HTML report stays CI-only.
   reporter: runnerMode === 'ci'
     ? [
         ['line'],
         ['html', { open: 'never', outputFolder: 'playwright-report' }],
         ['json', { outputFile: 'test-results/results.json' }],
       ]
-    : [['line']],
+    : [
+        ['line'],
+        ['json', { outputFile: 'test-results/results.json' }],
+      ],
 
   outputDir: 'test-results/artifacts',
 

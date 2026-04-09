@@ -21,22 +21,55 @@ const BUDGETS: Record<string, Required<WebVitalsSnapshot>> = {
   checkout: { LCP: 3000, CLS: 0.1, INP: 200, FCP: 2000, TBT: 400 },
 };
 
+// PREFERRED: install web-vitals as a devDependency and serve the IIFE bundle
+// from your own origin (e.g. public/vendor/web-vitals.iife.js). This avoids
+// CDN blocks in enterprise/CI networks that would otherwise let budgets pass
+// silently because metrics never get collected.
+//
+//   npm i -D web-vitals
+//   cp node_modules/web-vitals/dist/web-vitals.iife.js public/vendor/
+//
+// Override the URL via WEB_VITALS_URL env var if your bundle lives elsewhere.
+// Precedence: explicit WEB_VITALS_URL > baseURL/vendor/ > public CDN fallback.
+function resolveWebVitalsUrl(): string {
+  if (process.env.WEB_VITALS_URL) return process.env.WEB_VITALS_URL;
+  if (process.env.PWTEST_BASE_URL) return `${process.env.PWTEST_BASE_URL}/vendor/web-vitals.iife.js`;
+  return 'https://unpkg.com/web-vitals@3/dist/web-vitals.iife.js';
+}
+const WEB_VITALS_URL = resolveWebVitalsUrl();
+
 async function collectWebVitals(page: import('@playwright/test').Page): Promise<WebVitalsSnapshot> {
-  // Inject web-vitals (self-hosted copy should be bundled; this is the UMD fallback)
-  await page.addScriptTag({
-    url: 'https://unpkg.com/web-vitals@3/dist/web-vitals.iife.js',
-  }).catch(() => { /* fallback: use local bundle */ });
+  // Inject web-vitals. FAIL-HARD if the script cannot be loaded — a silent
+  // fallback would let budgets pass on every run with empty metrics.
+  try {
+    await page.addScriptTag({ url: WEB_VITALS_URL });
+  } catch (err) {
+    throw new Error(
+      `[perf-budget] Failed to load web-vitals from "${WEB_VITALS_URL}". ` +
+      `Bundle it locally (see comment above) or set WEB_VITALS_URL. ` +
+      `Perf budgets cannot be enforced without the web-vitals library. ` +
+      `Original error: ${(err as Error).message}`
+    );
+  }
 
   // Start collection
-  await page.evaluate(() => {
+  const hasWebVitals = await page.evaluate(() => {
     (window as any).__pwVitals = {};
     const wv = (window as any).webVitals;
-    if (!wv) return;
+    if (!wv) return false;
     wv.onLCP?.((m: any) => { (window as any).__pwVitals.LCP = m.value; });
     wv.onCLS?.((m: any) => { (window as any).__pwVitals.CLS = m.value; });
     wv.onINP?.((m: any) => { (window as any).__pwVitals.INP = m.value; });
     wv.onFCP?.((m: any) => { (window as any).__pwVitals.FCP = m.value; });
+    return true;
   });
+
+  if (!hasWebVitals) {
+    throw new Error(
+      '[perf-budget] window.webVitals is undefined after script inject. ' +
+      'The web-vitals library was not exposed — check the URL serves the IIFE build.'
+    );
+  }
 
   // Wait for LCP + FCP to settle (they fire after the main content is painted)
   await page.waitForTimeout(1000);
@@ -45,7 +78,18 @@ async function collectWebVitals(page: import('@playwright/test').Page): Promise<
   await page.mouse.click(10, 10);
   await page.waitForTimeout(500);
 
-  return await page.evaluate(() => (window as any).__pwVitals ?? {});
+  const snapshot = await page.evaluate(() => (window as any).__pwVitals ?? {});
+
+  // Require LCP as the bare minimum — if even LCP is missing, the library
+  // didn't actually collect anything and the budget check would be a no-op.
+  if (snapshot.LCP === undefined && snapshot.FCP === undefined) {
+    throw new Error(
+      '[perf-budget] web-vitals returned no LCP/FCP samples. ' +
+      'Budget enforcement aborted to avoid false-pass.'
+    );
+  }
+
+  return snapshot;
 }
 
 function assertBudget(actual: WebVitalsSnapshot, budget: Required<WebVitalsSnapshot>, pageType: string) {

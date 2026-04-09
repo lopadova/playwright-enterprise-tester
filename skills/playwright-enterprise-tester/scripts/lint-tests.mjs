@@ -25,9 +25,12 @@ const config = existsSync(configPath) ? JSON.parse(readFileSync(configPath, 'utf
 const linterConfig = config.linterEnforce ?? config.antiPatternLinter ?? {};
 const mode = modeArg ?? linterConfig.mode ?? 'warn-only';
 const failOn = new Set(linterConfig.failOn ?? []);
+// Default warnOn list must only reference rule IDs that actually exist in
+// the RULES array below. Phantom IDs would make users think the linter is
+// covering a rule that never fires.
 const warnOn = new Set(linterConfig.warnOn ?? [
-  'waitForTimeoutHardcoded', 'cssFirstChoice', 'nthChildSelector',
-  'volatileTextMatcher', 'pageDollarApi', 'testOnlyInCI',
+  'waitForTimeoutHardcoded', 'nthChildSelector',
+  'pageDollarApi', 'testOnlyInCI',
   'skipWithoutIssueRef', 'hardcodedCredentials'
 ]);
 

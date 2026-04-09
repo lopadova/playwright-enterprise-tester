@@ -2,7 +2,7 @@
 // Usage: import { ScrapingHelper } from './support/scraping-helpers';
 
 import type { Page, Locator } from '@playwright/test';
-import { writeFileSync, mkdirSync, appendFileSync } from 'node:fs';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 type ScrapingOptions = {
@@ -20,6 +20,15 @@ export class ScrapingHelper {
     this.opts.format ??= 'json';
     this.opts.rateLimitRps ??= 2;
     this.opts.jitterMs ??= 500;
+
+    // Guard against 0/negative rps which would yield Infinity/negative waits
+    // and disable throttling entirely — a polite-scraping hazard.
+    if (!Number.isFinite(this.opts.rateLimitRps) || this.opts.rateLimitRps! < 1) {
+      this.opts.rateLimitRps = 1;
+    }
+    if (!Number.isFinite(this.opts.jitterMs) || this.opts.jitterMs! < 0) {
+      this.opts.jitterMs = 0;
+    }
   }
 
   async throttle(): Promise<void> {
@@ -80,10 +89,14 @@ export class ScrapingHelper {
       const nextBtn = this.page.locator(params.nextPageSelector).first();
       if (!(await nextBtn.isVisible().catch(() => false))) break;
 
-      await Promise.all([
-        this.page.waitForLoadState('domcontentloaded'),
-        nextBtn.click()
-      ]);
+      // waitForLoadState('domcontentloaded') races — the current page is
+      // already loaded so it resolves immediately, letting the loop continue
+      // before the next page renders. Capture the URL, click, and wait for
+      // it to actually change — that's the deterministic signal.
+      const prevUrl = this.page.url();
+      await nextBtn.click();
+      await this.page.waitForURL((u) => u.toString() !== prevUrl, { timeout: 15_000 });
+      await this.page.waitForLoadState('domcontentloaded');
       pageCount++;
     }
 
