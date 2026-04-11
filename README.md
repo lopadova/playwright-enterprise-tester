@@ -298,6 +298,295 @@ Structure (simplified):
 
 Full parameter reference: [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
+## Frontend best practices (team contract for stable tests)
+
+> **Read this if you ship frontend code in a project that uses this plugin.**
+> Tests break far more often because of fragile markup than because of bad
+> Playwright code. The rules below are the **contract** the frontend must
+> respect so the test suite survives refactors, copy changes, CSS rewrites
+> and component-library upgrades.
+>
+> Deep reference (with severity, report format, automation boundary):
+> [frontend-contracts-checklist.md](skills/playwright-enterprise-tester/references/frontend-contracts-checklist.md).
+
+### Locator hierarchy (enforced by the plugin)
+
+The plugin (and the agent) selects locators in this exact order. **Use the
+highest in the list that works**, drop one level only when the level above
+genuinely cannot be applied:
+
+1. `getByRole()` — semantic, accessibility-driven, the most resilient
+2. `getByLabel()` — for form fields with a real `<label>`
+3. `getByPlaceholder()` — only when there is no label (last-resort for inputs)
+4. `getByText()` — only for **stable** copy (not marketing-volatile)
+5. `getByTestId()` — explicit, stable contract via `data-testid`
+6. CSS selector — **last resort**, requires justification
+
+The anti-pattern linter (`P2.05`) will flag tests that violate this order.
+
+### A. Semantically stable UI
+
+Buttons, links, inputs, dialogs, checkboxes must expose **roles** and
+**accessible names** that don't depend on CSS classes or DOM structure.
+This is what makes `getByRole()` survive refactors.
+
+**Wrong**
+
+```html
+<div class="btn-primary" onclick="addToCart()">🛒</div>
+<div class="modal-wrapper-v2">...</div>
+<span class="form-input"><input type="text" /></span>
+```
+
+**Right**
+
+```html
+<button type="button" aria-label="Add to cart">🛒</button>
+<div role="dialog" aria-labelledby="checkout-title">
+  <h2 id="checkout-title">Checkout</h2>
+  ...
+</div>
+<label for="email">Email</label>
+<input id="email" type="email" name="email" />
+```
+
+Test code that survives refactors:
+
+```ts
+await page.getByRole('button', { name: 'Add to cart' }).click();
+await expect(page.getByRole('dialog', { name: 'Checkout' })).toBeVisible();
+await page.getByLabel('Email').fill('user@example.com');
+```
+
+### B. Form fields must be properly labeled
+
+Every input needs a real `<label for>` association or an equivalent
+accessible attribute. Without it `getByLabel()` cannot find the field.
+
+**Wrong**
+
+```html
+<span>Email</span>
+<input type="email" name="email" />
+```
+
+**Right**
+
+```html
+<label for="email">Email</label>
+<input id="email" type="email" name="email" />
+
+<!-- or, when no visual label is desired -->
+<input type="search" aria-label="Site search" />
+```
+
+### C. `data-testid` is a stable testing contract — not a fallback dump
+
+When semantics are not enough (icon-only buttons, repeating list items,
+highly dynamic widgets), add `data-testid` **on critical business nodes only**
+and treat it as a public API of the frontend.
+
+**Naming convention:** `data-testid="{scope}-{element}-{variant}"`.
+
+**Wrong**
+
+```html
+<!-- random, internal, framework-generated -->
+<button class="sc-a8b21f">Pay</button>
+<div id="react-root-42-checkout-btn-1">...</div>
+```
+
+**Right**
+
+```html
+<button type="button" data-testid="checkout-submit">Pay now</button>
+<li data-testid="cart-item" data-testid-id="sku-1234">...</li>
+<div data-testid="address-form-city">...</div>
+```
+
+```ts
+await page.getByTestId('checkout-submit').click();
+const items = page.getByTestId('cart-item');
+await expect(items).toHaveCount(3);
+```
+
+**Rules:**
+
+- never use **CSS classes** as test hooks
+- never use **framework-generated IDs** as test hooks
+- if you change internal markup but keep `data-testid` stable, the suite survives
+- removing or renaming a `data-testid` is a **breaking change** — coordinate with QA
+
+### D. Don't anchor tests to volatile marketing copy
+
+CTAs maintained by marketing change frequently. `getByText('Buy now!')` will
+break the day someone ships `'Shop the collection'`.
+
+**Wrong**
+
+```ts
+// ❌ marketing-volatile
+await page.getByText('🔥 Limited offer — Buy now!').click();
+```
+
+**Right**
+
+```html
+<button type="button" aria-label="Buy now" data-testid="pdp-buy-now">
+  🔥 Limited offer — Buy now!
+</button>
+```
+
+```ts
+// ✅ accessible name + stable testid
+await page.getByRole('button', { name: 'Buy now' }).click();
+// or
+await page.getByTestId('pdp-buy-now').click();
+```
+
+`getByText()` is fine for **stable** content (page titles, fixed labels),
+not for editorial copy.
+
+### E. No selectors based on generated/hashed CSS classes
+
+CSS Modules, CSS-in-JS, Tailwind utility classes, Emotion, styled-components,
+component libraries — all produce hashed or rebuild-volatile classes.
+
+**Wrong**
+
+```ts
+await page.locator('.sc-a1b2c3').click();
+await page.locator('div.bg-red-500.px-4.py-2 > span').click();
+await page.locator('#__next > main > div:nth-child(3) > button').click();
+```
+
+**Right**
+
+```ts
+await page.getByRole('button', { name: 'Confirm order' }).click();
+await page.getByTestId('order-confirm').click();
+```
+
+### F. Loading / success / error states must be observable
+
+Tests need a deterministic signal that an async action finished. Don't rely
+on animations, `setTimeout`, or "things look done now". Expose state.
+
+**Wrong**
+
+```html
+<div class="spinner-anim"></div> <!-- no role, no testid, just CSS -->
+<div class="toast">Saved</div>   <!-- no role, no anchor -->
+```
+
+**Right**
+
+```html
+<!-- loading -->
+<div role="status" aria-live="polite" data-testid="orders-loading">
+  Loading orders…
+</div>
+
+<!-- success -->
+<div role="status" data-testid="save-success">Profile saved</div>
+
+<!-- error -->
+<div role="alert" data-testid="checkout-error">
+  Payment was declined
+</div>
+
+<!-- submit button reflects state -->
+<button type="submit" data-testid="checkout-submit" disabled>
+  Processing…
+</button>
+```
+
+```ts
+await page.getByTestId('checkout-submit').click();
+await expect(page.getByRole('status', { name: /profile saved/i })).toBeVisible();
+// or
+await expect(page.getByTestId('save-success')).toBeVisible();
+```
+
+### G. Async stability on SPAs (React, Vue, Livewire, Inertia, Alpine)
+
+Playwright auto-waits on locators, but only if the UI exposes a real
+"finished" signal. Do **not** make tests guess.
+
+**Wrong**
+
+```ts
+await page.click('#submit');
+await page.waitForTimeout(2000); // ❌ forbidden by the async policy
+expect(await page.locator('.row').count()).toBe(5);
+```
+
+**Right**
+
+```ts
+await page.getByRole('button', { name: 'Submit' }).click();
+await expect(page.getByTestId('results-row')).toHaveCount(5);
+// auto-waits up to the timeout, no sleeps
+```
+
+If you have a list that streams in, expose a `data-testid="results-loaded"`
+flag the test can wait on, or wait on a count assertion as above.
+
+### H. Accessible dialogs, tabs and menus
+
+Custom widgets without ARIA roles are **invisible** to `getByRole`, forcing
+the test back to CSS. Add the roles.
+
+**Wrong**
+
+```html
+<div class="my-modal open">
+  <div class="my-modal-body">...</div>
+</div>
+```
+
+**Right**
+
+```html
+<div role="dialog" aria-modal="true" aria-labelledby="confirm-title"
+     data-testid="confirm-dialog">
+  <h2 id="confirm-title">Delete account?</h2>
+  <button type="button">Cancel</button>
+  <button type="button">Delete</button>
+</div>
+```
+
+```ts
+const dialog = page.getByRole('dialog', { name: 'Delete account?' });
+await expect(dialog).toBeVisible();
+await dialog.getByRole('button', { name: 'Delete' }).click();
+```
+
+### Team rules at a glance
+
+| ✅ Do | ❌ Don't |
+|---|---|
+| Use semantic HTML (`<button>`, `<label>`, `<dialog>`) | Use `<div onclick>` with CSS classes |
+| Give every interactive control an accessible name | Rely on icons / emojis only |
+| Associate every input with a real `<label for>` | Use `<span>` or visual proximity as the label |
+| Add `data-testid` on business-critical nodes | Sprinkle `data-testid` on every element |
+| Treat `data-testid` as a public API (review changes) | Rename/remove a testid without telling QA |
+| Use `getByRole` first, `getByTestId` for the rest | Fall back to CSS or `nth-child` selectors |
+| Expose loading/success/error via `role` or `data-testid` | Use animations / timers as the only signal |
+| Use stable copy for `getByText` | Anchor tests to marketing-volatile strings |
+
+### How the plugin enforces this
+
+- **Locator policy** in `.playwright-tester.json` → declarative preferred order
+- **Anti-pattern linter** (`P2.05 linterEnforce`) → fails tests that violate it
+- **Frontend contracts report** → every run lists missing labels, missing
+  testids and CSS-coupled selectors with severity (`high` / `medium` / `low`)
+- **Failure classification** → distinguishes a real `app_bug` from a `test_bug`
+  caused by a contract violation, so the right team owns the fix
+
+If you adopt these rules, your test suite will survive almost every refactor
+and your `frontendContractFindings` section will stay green.
+
 ## Progressive adoption
 
 Don't enable all 17 phase 2 features at once. Suggested order (see
