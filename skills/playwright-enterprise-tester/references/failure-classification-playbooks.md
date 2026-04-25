@@ -12,6 +12,13 @@ there is a deterministic playbook the skill follows before escalating.
 
 Classification happens BEFORE any fix attempt. Never patch blindly.
 
+> **Precondition: `TEST-CI-001`** — for any failure (CI or local), download
+> and read the full artifact set + logs before classifying. CI: `gh run
+> download`, `gh run view --log` (full, not `--log-failed`), and the
+> `laravel-logs*` artifact. Local: read `storage/logs/laravel.log`,
+> `test-results/`, `playwright-report/`. Correlate frontend ↔ backend ↔
+> silent errors. See `../../../rules/rule-ci-test-failure-analysis.md`.
+
 ## Signals per classification
 
 ### `test_bug` signals
@@ -56,7 +63,10 @@ Classification happens BEFORE any fix attempt. Never patch blindly.
 1. Check if `webServer.command` is set correctly
 2. Check the working directory
 3. Check `.env` / `.env.testing` for `APP_ENV=testing`, `DB_DATABASE=...`
-4. Check the logs: `storage/logs/laravel.log` for the latest error
+4. Check the logs: `storage/logs/laravel.log` for the latest error.
+   In CI: download the `laravel-logs*` artifact (`gh run download <RUN>
+   --pattern "laravel-logs*"`) and `grep -B 3 -A 30 "Exception\|ERROR\|CRITICAL"`
+   the `storage/logs/laravel.log` it contains.
 5. Report the log tail to the user; do NOT try to fix app boot issues automatically
 
 **Playbook 1.3: Missing Playwright dependency**
@@ -178,8 +188,13 @@ On stop, produce a detailed report with all evidence and hand off to the user.
 Every classified failure MUST include:
 - trace zip path
 - screenshot path
-- server log tail (if `app_bug` or `env_bug`)
+- server log tail (`storage/logs/laravel.log` time-windowed around the failure;
+  also `horizon.log` if jobs are dispatched) — required by `TEST-CI-001` for
+  any failure that touched the backend, regardless of classification
 - the last 3 commands executed
 - the classification reasoning
+- for CI failures: the `_ci-debug/<RUN>/` path containing the downloaded
+  artifact zip, `full.log` (full `gh run view --log`, not the failed-step
+  excerpt), and the Laravel logs (from `laravel-logs*` artifact)
 
 This is mandatory before any app code change.

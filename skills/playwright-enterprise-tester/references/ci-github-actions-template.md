@@ -93,7 +93,31 @@ jobs:
           name: flakiness-history-shard-${{ matrix.shard }}
           path: test-results/flakiness-history.jsonl
           retention-days: 90
+
+      # MANDATORY for TEST-CI-001 — Laravel/Horizon logs must be uploadable
+      # so the AI can correlate frontend failures with backend exceptions.
+      # Naming convention enforced by the rule:
+      #   - single job (no matrix): "laravel-logs"
+      #   - sharded matrix: "laravel-logs-shard-<N>"
+      # The "laravel-logs" prefix is required so consumers can run
+      #   gh run download <RUN-ID> --pattern "laravel-logs*"
+      # against either layout. retention-days >= 14 (90 here for post-mortem).
+      - name: Upload Laravel logs (TEST-CI-001)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: laravel-logs-shard-${{ matrix.shard }}
+          path: |
+            storage/logs/laravel.log
+            storage/logs/horizon.log
+          if-no-files-found: ignore
+          retention-days: 90
 ```
+
+> **Single-job (no matrix) variant**: when the workflow does not use a
+> `matrix.shard`, name the artifact exactly `laravel-logs` (no shard suffix).
+> The prefix `laravel-logs` is mandatory either way so the AI can run
+> `gh run download --pattern "laravel-logs*"` consistently.
 
 ## Release gate workflow (nightly)
 
@@ -140,6 +164,17 @@ jobs:
           path: |
             playwright-report/
             test-results/
+          retention-days: 30
+
+      # TEST-CI-001 mandatory artifact — Laravel logs separate from playwright artifacts
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: laravel-logs-shard-${{ matrix.shard }}
+          path: |
+            storage/logs/laravel.log
+            storage/logs/horizon.log
+          if-no-files-found: ignore
           retention-days: 30
 ```
 
@@ -271,11 +306,29 @@ Each with its own scope, sharding, and secrets.
 
 ## Troubleshooting CI runs
 
-1. Check the HTML report artifact first
-2. Check the trace.zip for the failing test
-3. Check the workflow logs for step output
-4. Look at `claude-report.json` for classification and suggested fixes
-5. Reproduce locally: `PWTEST_RUNNER_MODE=ci npm run test:e2e`
+`TEST-CI-001` mandates the **full** download of artifacts and the FULL job log
+before proposing any fix. Quick recipe:
+
+```bash
+RUN=$(gh run list --status=failure --limit 1 --json databaseId -q '.[0].databaseId')
+mkdir -p ./_ci-debug/$RUN
+gh run download $RUN --dir ./_ci-debug/$RUN
+gh run view $RUN --log        > ./_ci-debug/$RUN/full.log    # required
+gh run view $RUN --log-failed > ./_ci-debug/$RUN/failed.log  # triage shortcut
+```
+
+Then read in this order:
+
+1. `full.log` — complete workflow log (NOT just failed steps)
+2. HTML report artifact (`playwright-report-shard-*/`)
+3. trace.zip for the failing test (`npx playwright show-trace`)
+4. `claude-report.json` — classification + silentErrors
+5. `laravel-logs-shard-*/storage/logs/laravel.log` — backend exceptions
+6. `flakiness-history-shard-*/flakiness-history.jsonl` — already known flaky?
+
+Reproduce locally: `PWTEST_RUNNER_MODE=ci npm run test:e2e`.
+
+Full procedure: [`rule-ci-test-failure-analysis.md`](../../../../rules/rule-ci-test-failure-analysis.md).
 
 ## Security notes
 

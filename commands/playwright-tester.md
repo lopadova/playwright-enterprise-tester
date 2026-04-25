@@ -97,6 +97,18 @@ These conditions trigger automatic STOP with user confirmation:
 - `fix-app-code=true` without `governance.allowAppCodeChangesWhenExplicitlyEnabled=true`
 - `mode=dynamic-scraping` on domains not in the `scraping.allowedDomains` list
 
+## CI failure analysis (TEST-CI-001)
+
+When a test fails in CI, the agent MUST download the full artifact zip
+(`gh run download`), the FULL job log (`gh run view --log`, not just
+`--log-failed`), and the Laravel logs artifact (`laravel-logs*`) into
+`./_ci-debug/<RUN-ID>/`, then correlate the frontend symptom with the backend
+exception and the silent errors captured by the JSON reporter — before
+classifying the failure. No fix is proposed from the job summary alone.
+
+Add `_ci-debug/` to the project's `.gitignore`. Full rule:
+[`rules/rule-ci-test-failure-analysis.md`](../rules/rule-ci-test-failure-analysis.md).
+
 ## Chained skills
 
 Users can configure follow-up skills in `.playwright-tester.json`:

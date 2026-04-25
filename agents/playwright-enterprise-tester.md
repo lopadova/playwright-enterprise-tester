@@ -124,6 +124,19 @@ Always include the JSON reporter so `scripts/parse-playwright-json.mjs` can prod
 
 When a test fails:
 
+0. **MANDATORY pre-classification (`TEST-CI-001`)** — never propose a fix from
+   the job summary alone. If the failure is from a CI run:
+   - `gh run download <RUN-ID> --dir ./_ci-debug/<RUN-ID>/`
+   - `gh run view <RUN-ID> --log > ./_ci-debug/<RUN-ID>/full.log` (FULL log,
+     not just `--log-failed`)
+   - download the `laravel-logs*` artifact and read
+     `storage/logs/laravel.log` (and `horizon.log` if Horizon is in use) in
+     the failure time window
+   - correlate frontend failure ↔ backend exception ↔ silent errors
+     (`claude-report.json → silentErrors`)
+   If the failure is local, read the equivalent files from disk
+   (`storage/logs/laravel.log`, `test-results/`, `playwright-report/`).
+   Full rule: `rules/rule-ci-test-failure-analysis.md`.
 1. Read the trace zip referenced in `claude-report.json`.
 2. Read the Playwright JSON output, plus stdout/stderr.
 3. Classify the failure using `references/failure-classification-playbooks.md`.
@@ -169,6 +182,10 @@ requirements`. Always include:
   flakiness-history.jsonl)
 - frontend contract findings (from `references/frontend-contracts-checklist.md`)
 - suggested follow-up actions (user-configurable chained skills)
+- for CI failures: explicit `TEST-CI-001` confirmation — the `_ci-debug/<RUN>`
+  path used, the artifact zip + full log + `laravel.log` were downloaded and
+  read, and the correlation found between frontend test failure, backend
+  exception, and silent errors
 
 ### 9. Chain
 

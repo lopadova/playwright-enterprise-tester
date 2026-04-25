@@ -396,13 +396,79 @@ Maximum fix attempts: 3 (overridable via `governance.maxFixAttempts`).
 
 On each failure:
 
-1. diagnose and classify via the playbook
-2. prefer fixing the smallest correct surface
-3. rerun the minimal affected scope first
-4. rerun broader scope when local fix validated
-5. report whether the test became flaky or stable
+1. **MANDATORY artifact + log analysis** per `TEST-CI-001` (see below) — read full
+   logs, download artifact zip, read `laravel.log`, correlate frontend ↔ backend ↔
+   silent errors
+2. diagnose and classify via the playbook
+3. prefer fixing the smallest correct surface
+4. rerun the minimal affected scope first
+5. rerun broader scope when local fix validated
+6. report whether the test became flaky or stable
 
 Stop at `maxFixAttempts` regardless of outcome. Report and hand off to the user.
+
+### CI red? Mandatory artifact analysis (TEST-CI-001)
+
+When the failure is from a CI run (GitHub Actions), **never propose a fix from
+the job summary alone**. Apply rule `TEST-CI-001`:
+
+```bash
+RUN=$(gh run list --status=failure --limit 1 --json databaseId -q '.[0].databaseId')
+mkdir -p ./_ci-debug/$RUN
+gh run download $RUN --dir ./_ci-debug/$RUN
+# FULL job log (mandatory by TEST-CI-001 — not just failed steps)
+gh run view $RUN --log        > ./_ci-debug/$RUN/full.log
+# Optional triage shortcut on failed steps only
+gh run view $RUN --log-failed > ./_ci-debug/$RUN/failed.log
+```
+
+Then read **all of these** before classifying:
+
+- `full.log` — complete run log (setup, services, warnings, ALL steps — required)
+- `failed.log` — failed-step excerpt (triage shortcut, never a substitute for full log)
+- `claude-report.json` (this skill's reporter) — failures, silentErrors,
+  perfBudgetViolations
+- `playwright-report/index.html` — step + screenshot timeline
+- `test-results/*/trace.zip` — `npx playwright show-trace`
+- `flakiness-history.jsonl` — is the test already known flaky?
+- `laravel-logs*/storage/logs/laravel.log` — backend exceptions in the failure
+  time window. `gh run download` preserves the artifact's internal path, so the
+  laravel log lands at `./_ci-debug/$RUN/<artifact-name>/storage/logs/laravel.log`
+- `laravel-logs*/storage/logs/horizon.log` if jobs are dispatched
+
+```bash
+# Find laravel.log regardless of artifact name (single job or sharded matrix)
+find ./_ci-debug/$RUN -path '*laravel-logs*' -name 'laravel.log' -print0 \
+  | xargs -0 grep -B 3 -A 30 "Exception\|ERROR\|CRITICAL"
+```
+
+Frontend HTTP 500 → almost always a PHP exception in `laravel.log`.
+"Element not visible" → often a controller `abort()`. Auth test flakiness →
+often a Horizon race condition.
+
+`./_ci-debug/` must be in `.gitignore`. Clean up after the fix is validated.
+
+**Workflow yaml requirement**: upload `laravel.log` as a dedicated artifact
+with `if: always()` and retention ≥ 14 days. Naming convention: `laravel-logs`
+(single job) or `laravel-logs-shard-<N>` (matrix runs). The `laravel-logs`
+prefix is mandatory so `gh run download --pattern "laravel-logs*"` works for
+both layouts. If missing, fix the yaml before applying the rule. See
+`references/ci-github-actions-template.md`.
+
+Full rule: `.claude/rules/rule-ci-test-failure-analysis.md`.
+
+### Local failure? Same rule, different sources
+
+When the failure is local (not CI), `TEST-CI-001` still applies. Skip
+`gh run download` (artifacts are already on disk) and read instead:
+
+- `npx playwright test ... 2>&1 | tee ./_ci-debug/local/playwright.log`
+- `playwright-report/`, `test-results/`, `test-results/claude-report.json`,
+  `test-results/flakiness-history.jsonl`
+- `storage/logs/laravel.log`, `storage/logs/horizon.log`
+
+Same correlation requirement: frontend symptom ↔ backend exception ↔ silent
+errors. Same anti-pattern list. Same checklist before proposing a fix.
 
 ---
 
@@ -451,6 +517,10 @@ Always include:
   videos, claude-report.json, flakiness-history.jsonl
 - frontend contract findings + recommended remediation
 - suggested follow-up actions
+- **for any CI failure**: explicit confirmation that artifact zip + `laravel.log`
+  were downloaded and analyzed before classification (`TEST-CI-001`). Include
+  the `_ci-debug/<RUN>` path used and the correlation found between frontend
+  test failure, backend exception, and silent errors.
 
 ---
 
@@ -491,6 +561,7 @@ On-demand reference loading (progressive disclosure):
 | `targeted-execution-scope.md` | Invocation parsing |
 | `test-data-staging-strategy.md` | Test data questions |
 | `ci-github-actions-template.md` | CI setup requested |
+| `../../../rules/rule-ci-test-failure-analysis.md` | Any CI/local test failure → MANDATORY (`TEST-CI-001`) |
 | `phase2-roadmap.md` | Phase 2 features requested |
 | `anti-pattern-linter.md` | Linter invoked |
 
