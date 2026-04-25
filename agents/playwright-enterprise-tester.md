@@ -183,9 +183,10 @@ requirements`. Always include:
 - frontend contract findings (from `references/frontend-contracts-checklist.md`)
 - suggested follow-up actions (user-configurable chained skills)
 - for CI failures: explicit `TEST-CI-001` confirmation — the `_ci-debug/<RUN>`
-  path used, the artifact zip + full log + `laravel.log` were downloaded and
-  read, and the correlation found between frontend test failure, backend
-  exception, and silent errors
+  path used, the run artifacts (extracted by `gh run download` into
+  per-artifact directories), the full log (`gh run view --log`), and
+  `laravel.log` were downloaded and read, and the correlation found between
+  frontend test failure, backend exception, and silent errors
 
 ### 9. Chain
 

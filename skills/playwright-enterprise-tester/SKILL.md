@@ -397,7 +397,8 @@ Maximum fix attempts: 3 (overridable via `governance.maxFixAttempts`).
 On each failure:
 
 1. **MANDATORY artifact + log analysis** per `TEST-CI-001` (see below) — read full
-   logs, download artifact zip, read `laravel.log`, correlate frontend ↔ backend ↔
+   logs, download all run artifacts (extracted into `_ci-debug/<RUN>/` by
+   `gh run download`), read `laravel.log`, correlate frontend ↔ backend ↔
    silent errors
 2. diagnose and classify via the playbook
 3. prefer fixing the smallest correct surface
@@ -455,7 +456,9 @@ prefix is mandatory so `gh run download --pattern "laravel-logs*"` works for
 both layouts. If missing, fix the yaml before applying the rule. See
 `references/ci-github-actions-template.md`.
 
-Full rule: `.claude/rules/rule-ci-test-failure-analysis.md`.
+Full rule: [`../../rules/rule-ci-test-failure-analysis.md`](../../rules/rule-ci-test-failure-analysis.md)
+(in installed plugins, typically resolves under
+`.claude/plugins/playwright-enterprise-tester/rules/`).
 
 ### Local failure? Same rule, different sources
 
@@ -517,10 +520,11 @@ Always include:
   videos, claude-report.json, flakiness-history.jsonl
 - frontend contract findings + recommended remediation
 - suggested follow-up actions
-- **for any CI failure**: explicit confirmation that artifact zip + `laravel.log`
-  were downloaded and analyzed before classification (`TEST-CI-001`). Include
-  the `_ci-debug/<RUN>` path used and the correlation found between frontend
-  test failure, backend exception, and silent errors.
+- **for any CI failure**: explicit confirmation that the run artifacts (extracted
+  by `gh run download` into per-artifact directories under `_ci-debug/<RUN>/`)
+  + `laravel.log` were downloaded and analyzed before classification
+  (`TEST-CI-001`). Include the `_ci-debug/<RUN>` path used and the correlation
+  found between frontend test failure, backend exception, and silent errors.
 
 ---
 
@@ -561,7 +565,7 @@ On-demand reference loading (progressive disclosure):
 | `targeted-execution-scope.md` | Invocation parsing |
 | `test-data-staging-strategy.md` | Test data questions |
 | `ci-github-actions-template.md` | CI setup requested |
-| `../../../rules/rule-ci-test-failure-analysis.md` | Any CI/local test failure → MANDATORY (`TEST-CI-001`) |
+| `../../rules/rule-ci-test-failure-analysis.md` | Any CI/local test failure → MANDATORY (`TEST-CI-001`) |
 | `phase2-roadmap.md` | Phase 2 features requested |
 | `anti-pattern-linter.md` | Linter invoked |
 

@@ -1,5 +1,16 @@
 # Regola: Analisi Fallimenti Test in CI — Sempre Log + Artefatti Completi
 
+> **English abstract** (the body of this rule is in Italian — the language of
+> the originating project). `TEST-CI-001` makes it mandatory, for any failed
+> test (CI or local), to download the full job log (`gh run view --log`, NOT
+> `--log-failed`), all run artifacts (`gh run download` extracts each into a
+> directory under `./_ci-debug/<RUN-ID>/`), and the Laravel logs (`laravel-logs*`
+> artifact, containing `storage/logs/laravel.log` and optionally `horizon.log`),
+> then correlate frontend symptom ↔ backend exception ↔ silent errors *before*
+> classifying the failure as `test_bug` / `app_bug` / `environment_bug` /
+> `flaky` and *before* proposing any fix. Add `_ci-debug/` to `.gitignore`. A
+> full English translation is on the roadmap.
+
 ## Identificativo
 `TEST-CI-001`
 
@@ -13,7 +24,7 @@ Tutti i test (Playwright E2E, PHPUnit Feature/Unit, Pest, qualsiasi suite) che f
 **MAI proporre un fix per un test fallito basandosi solo sul log "summary" del job.** Prima di formulare ipotesi e prima di toccare codice, l'AI DEVE:
 
 1. **Leggere il log del job fallito per intero** (non solo l'estratto di errore).
-2. **Scaricare e ispezionare TUTTI gli artefatti** prodotti dal job (zip artifacts: trace, screenshot, video, HTML report, `claude-report.json`, `flakiness-history.jsonl`).
+2. **Scaricare e ispezionare TUTTI gli artefatti** prodotti dal job (`gh run download` estrae ogni artefatto in una sotto-cartella: trace, screenshot, video, HTML report, `claude-report.json`, `flakiness-history.jsonl`).
 3. **Scaricare e ispezionare i log applicativi**: `storage/logs/laravel.log`, `storage/logs/horizon.log`, eventuali log di Mix/Vite/Webpack, log di Playwright (`test-results/`).
 4. **Correlare** errore frontend (test) con errore backend (Laravel log) **e** silent failures (console/pageerror/requestfailed nel claude-report).
 5. Solo dopo questa analisi formulare la diagnosi (`test_bug` / `app_bug` / `environment_bug` / `flaky`) e proporre un fix **preciso**.
@@ -38,9 +49,9 @@ gh pr checks <PR-NUMBER> --watch=false
 gh run download <RUN-ID> --dir ./_ci-debug/<RUN-ID>/
 
 # 3. Salva il log COMPLETO del run (obbligatorio per TEST-CI-001 — non solo gli step falliti)
-gh run view <RUN-ID> --log > ./_ci-debug/<RUN-ID>/job-full.log
+gh run view <RUN-ID> --log > ./_ci-debug/<RUN-ID>/full.log
 # Facoltativo, per triage rapido sugli step rossi:
-gh run view <RUN-ID> --log-failed > ./_ci-debug/<RUN-ID>/job-failed.log
+gh run view <RUN-ID> --log-failed > ./_ci-debug/<RUN-ID>/failed.log
 ```
 
 `./_ci-debug/` è la cartella **gitignored** dove l'AI scarica gli artefatti per ispezione locale. Aggiungerla a `.gitignore` se mancante.
@@ -143,8 +154,8 @@ gh run list --workflow=playwright.yml --status=failure --limit 1
 ```bash
 mkdir -p ./_ci-debug/<RUN-ID>
 gh run download <RUN-ID> --dir ./_ci-debug/<RUN-ID>/
-gh run view <RUN-ID> --log > ./_ci-debug/<RUN-ID>/full-job.log
-gh run view <RUN-ID> --log-failed > ./_ci-debug/<RUN-ID>/failed-steps.log
+gh run view <RUN-ID> --log > ./_ci-debug/<RUN-ID>/full.log
+gh run view <RUN-ID> --log-failed > ./_ci-debug/<RUN-ID>/failed.log
 ```
 
 Se gli artefatti pesano troppo (>500MB), scaricare selettivamente per nome esatto o per pattern:
@@ -158,8 +169,8 @@ gh run download <RUN-ID> --pattern "laravel-logs*"   # cattura sia singolo job c
 
 In ordine:
 
-1. **`full-job.log`** → log completo del run, OBBLIGATORIO (TEST-CI-001 vieta di basarsi solo sul summary)
-2. **`failed-steps.log`** → estratto degli step rossi per triage rapido
+1. **`full.log`** → log completo del run, OBBLIGATORIO (TEST-CI-001 vieta di basarsi solo sul summary)
+2. **`failed.log`** → estratto degli step rossi per triage rapido
 3. **`claude-report.json`** (Playwright) → classificazione e silentErrors
 4. **HTML report** → step Playwright + screenshot inline
 5. **Trace zip** → timeline DOM/network/console del test fallito
@@ -171,7 +182,7 @@ In ordine:
 Esempio di output corretto:
 
 ```
-✓ Letto full-job.log + failed-steps.log (riga 1240): asserzione `expect(page.getByRole('button', {name: 'Procedi'})).toBeVisible()` fallita
+✓ Letto full.log + failed.log (riga 1240): asserzione `expect(page.getByRole('button', {name: 'Procedi'})).toBeVisible()` fallita
 ✓ Letto claude-report.json: classification=test_bug? → ma silentErrors contiene 1 pageerror "Cannot read property 'cart' of undefined"
 ✓ Letto laravel-logs-shard-1/storage/logs/laravel.log (15:42:18): NoCartFoundException in CartController@show, stack trace su CartService:142
 ✓ Reclassification: app_bug, NON test_bug
@@ -239,7 +250,7 @@ Aggiungere (una volta) al `.gitignore` del repo:
 _ci-debug/
 ```
 
-In questo modo l'AI può scaricare zip pesanti senza rischiare di committarli.
+In questo modo l'AI può scaricare artefatti pesanti senza rischiare di committarli.
 
 ---
 
@@ -278,7 +289,7 @@ find ./_ci-debug/$RUN -path '*laravel-logs*' -name 'laravel.log' -print0 \
 ## Checklist Prima di Proporre un Fix
 
 - [ ] Letto job log fallito completo (non solo summary)
-- [ ] Scaricato zip artefatti del run
+- [ ] Scaricati gli artefatti del run (`gh run download` estrae ogni artefatto in una sotto-cartella sotto `./_ci-debug/<RUN>/`)
 - [ ] Letto `claude-report.json` (Playwright) o `phpunit-junit.xml` (PHPUnit)
 - [ ] Aperto HTML report e/o trace zip per il test fallito
 - [ ] Scaricato e letto `storage/logs/laravel.log` finestra temporale del fail
@@ -296,4 +307,4 @@ find ./_ci-debug/$RUN -path '*laravel-logs*' -name 'laravel.log' -print0 \
 - `CHAIN-FE-TEST-001` — Chain `/pagespeed-review` dopo test FE
 - `GIT-PR-001` — PR workflow (mai `--no-verify`, mai fix speculativo per chiudere review)
 - `SEC-LOG-001` — Logging & data masking (PII nei log scaricati va trattata con cautela; mai pubblicarla in commenti PR)
-- `SYNC-AI-001` — Questa regola è sincronizzata su Copilot (`.github/instructions/ci-test-failure-analysis.instructions.md`) e Gemini (sezione `TEST-CI-001` in `.gemini/gemini.md`).
+- `SYNC-AI-001` — Questa regola è sincronizzata anche nei repository consumer: su Copilot in `.github/instructions/ci-test-failure-analysis.instructions.md` e su Gemini nella sezione `TEST-CI-001` di `.gemini/gemini.md`. Tali path possono non essere presenti in questo repository (vivono nei progetti che adottano il plugin).

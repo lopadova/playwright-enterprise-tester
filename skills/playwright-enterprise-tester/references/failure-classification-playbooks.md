@@ -193,8 +193,9 @@ Every classified failure MUST include:
   any failure that touched the backend, regardless of classification
 - the last 3 commands executed
 - the classification reasoning
-- for CI failures: the `_ci-debug/<RUN>/` path containing the downloaded
-  artifact zip, `full.log` (full `gh run view --log`, not the failed-step
-  excerpt), and the Laravel logs (from `laravel-logs*` artifact)
+- for CI failures: the `_ci-debug/<RUN>/` path containing the extracted
+  artifact folders/files from `gh run download`, `full.log` (full `gh run
+  view --log`, not the failed-step excerpt), and the Laravel logs from the
+  extracted `laravel-logs*` artifact
 
 This is mandatory before any app code change.

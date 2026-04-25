@@ -328,7 +328,7 @@ Then read in this order:
 
 Reproduce locally: `PWTEST_RUNNER_MODE=ci npm run test:e2e`.
 
-Full procedure: [`rule-ci-test-failure-analysis.md`](../../../../rules/rule-ci-test-failure-analysis.md).
+Full procedure: [`rule-ci-test-failure-analysis.md`](../../../rules/rule-ci-test-failure-analysis.md).
 
 ## Security notes
 

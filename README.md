@@ -302,11 +302,12 @@ Full parameter reference: [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 The skill's CI failure analysis rule (`TEST-CI-001`,
 [`rules/rule-ci-test-failure-analysis.md`](rules/rule-ci-test-failure-analysis.md))
-mandates downloading the full artifact zip and Laravel logs locally before
+mandates downloading **all run artifacts** (extracted into per-artifact
+directories by `gh run download`) plus the Laravel logs locally before
 proposing any fix for a red CI run. Those downloads land in `./_ci-debug/`.
 
-**Add this entry to your project's `.gitignore`** so artifact zips are never
-committed by accident:
+**Add this entry to your project's `.gitignore`** so the extracted artifacts
+are never committed by accident:
 
 ```gitignore
 # CI debug artifacts downloaded locally for failure analysis (TEST-CI-001)

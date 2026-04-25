@@ -90,7 +90,7 @@ Initial release of the `playwright-enterprise-tester` Claude Code plugin.
 - New rule `TEST-CI-001` (`rules/rule-ci-test-failure-analysis.md`) — mandatory
   artifact + log analysis before classifying any test failure (CI or local).
   AIs must download the full `gh run view --log` (not `--log-failed`), the
-  full artifact zip, and the `laravel-logs*` artifact, then correlate
+  run artifacts, and the `laravel-logs*` artifact, then correlate
   frontend ↔ backend ↔ silent errors before proposing a fix.
 - `SKILL.md` fix loop now references `TEST-CI-001` as step 1 on every failure;
   final report requirements include explicit `_ci-debug/<RUN>` path + correlation.
