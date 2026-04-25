@@ -85,4 +85,25 @@ Initial release of the `playwright-enterprise-tester` Claude Code plugin.
 
 ## [Unreleased]
 
+### Added
+
+- New rule `TEST-CI-001` (`rules/rule-ci-test-failure-analysis.md`) — mandatory
+  artifact + log analysis before classifying any test failure (CI or local).
+  AIs must download the full `gh run view --log` (not `--log-failed`), the
+  run artifacts, and the `laravel-logs*` artifact, then correlate
+  frontend ↔ backend ↔ silent errors before proposing a fix.
+- `SKILL.md` fix loop now references `TEST-CI-001` as step 1 on every failure;
+  final report requirements include explicit `_ci-debug/<RUN>` path + correlation.
+- Agent diagnose step (step 5) gains a mandatory pre-classification phase 0
+  that downloads artifacts and Laravel logs.
+- Slash command documents the CI failure analysis workflow.
+- `references/ci-github-actions-template.md` workflows now upload
+  `storage/logs/laravel.log` and `horizon.log` as a dedicated artifact named
+  `laravel-logs` (single job) or `laravel-logs-shard-<N>` (matrix). Naming
+  prefix is mandatory so `gh run download --pattern "laravel-logs*"` works
+  for both layouts.
+- `references/failure-classification-playbooks.md` evidence requirements now
+  include the `_ci-debug/<RUN>/` path with full log + Laravel logs.
+- `README.md` documents the required `_ci-debug/` `.gitignore` entry.
+
 See [docs/PHASE-3-ROADMAP.md](docs/PHASE-3-ROADMAP.md) for planned features.

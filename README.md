@@ -298,6 +298,26 @@ Structure (simplified):
 
 Full parameter reference: [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
+## Required `.gitignore` entry (CI failure analysis — TEST-CI-001)
+
+The skill's CI failure analysis rule (`TEST-CI-001`,
+[`rules/rule-ci-test-failure-analysis.md`](rules/rule-ci-test-failure-analysis.md))
+mandates downloading **all run artifacts** (extracted into per-artifact
+directories by `gh run download`) plus the Laravel logs locally before
+proposing any fix for a red CI run. Those downloads land in `./_ci-debug/`.
+
+**Add this entry to your project's `.gitignore`** so the extracted artifacts
+are never committed by accident:
+
+```gitignore
+# CI debug artifacts downloaded locally for failure analysis (TEST-CI-001)
+_ci-debug/
+```
+
+Without this entry, `gh run download` will dump tens of MB of test traces,
+screenshots, videos and `laravel.log` files inside the repo and a careless
+`git add .` will try to commit them.
+
 ## Frontend best practices (team contract for stable tests)
 
 > **Read this if you ship frontend code in a project that uses this plugin.**
