@@ -1,50 +1,128 @@
 # Playwright Enterprise Tester
 
-**An enterprise-grade Playwright E2E testing plugin for [Claude Code](https://claude.com/claude-code).**
-
-Write, run, diagnose, and fix Playwright tests through a battle-tested AI agent
-that enforces locator best practices, async policies, failure classification,
-silent failure detection, PII masking, and 17 opt-in enterprise features.
-Multi-stack: works out of the box on Laravel, Next.js, Bun, Cloudflare Workers,
-and any Node-based web app.
+> **Stop babysitting AI in the browser. Stop debugging flaky suites at 2am.**
+> A battle-tested, governance-first Playwright plugin for [Claude Code](https://claude.com/claude-code) — discovers, authors, runs, classifies, fixes, and reports E2E tests on Laravel, Next.js, Bun, Cloudflare Workers, and any Node web app. Defensive defaults, 17 enterprise features, zero-surprise app-code edits.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Playwright](https://img.shields.io/badge/Playwright-1.40+-45ba4b.svg)](https://playwright.dev/)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-compatible-8B5CF6.svg)](https://claude.com/claude-code)
+[![Stacks](https://img.shields.io/badge/Stacks-Laravel%20%7C%20Next.js%20%7C%20Bun%20%7C%20CF%20Workers-2563EB.svg)](#supported-stacks)
+[![Phase 2 features](https://img.shields.io/badge/Phase%202%20features-17%20opt--in-orange.svg)](#feature-highlights)
+[![Governance](https://img.shields.io/badge/Governance-4--condition%20guardrail-red.svg)](#governance)
 
 ---
 
-## Why this plugin
+## Table of Contents
 
-Three problems every team faces with Playwright at scale:
+- [Why this plugin exists](#why-this-plugin-exists)
+- [The 60-second value proposition](#the-60-second-value-proposition)
+- [Who is this for?](#who-is-this-for)
+- [What ships in the box](#what-ships-in-the-box)
+- [Feature highlights](#feature-highlights)
+  - [Phase 1 — always on](#phase-1-always-on)
+  - [Phase 2 — 17 opt-in features](#phase-2-17-opt-in-features-all-off-by-default)
+- [Quick install](#quick-install)
+- [Your first test](#your-first-test)
+- [Supported stacks](#supported-stacks)
+- [Runner modes (`local` vs `ci`)](#runner-modes)
+- [Architecture](#architecture)
+- [Documentation map](#documentation)
+- [Configuration in one glance](#configuration-in-one-glance)
+- [CI failure analysis — required `.gitignore` (TEST-CI-001)](#ci-failure-analysis--required-gitignore-test-ci-001)
+- [Frontend best practices (team contract)](#frontend-best-practices-team-contract-for-stable-tests)
+- [Progressive adoption](#progressive-adoption)
+- [Governance](#governance)
+- [License / Contributing / Changelog](#license)
 
-1. **AI wastes tokens driving the browser live**. Every session starts from
-   scratch, no persistence, no repeatability.
-2. **Suites rot without governance**. Flaky tests, brittle CSS selectors,
-   no failure classification, no observability, manual app fixes creep in.
-3. **Setup is stack-specific and incomplete**. Generic Playwright guides miss
-   Laravel CSRF, Next.js hydration, Bun dev servers, Cloudflare Worker
-   emulation, cross-browser quirks, accessibility, and performance budgets.
+---
 
-This plugin solves all three by shipping:
+## Why this plugin exists
 
-- **A persistent skill** (`playwright-enterprise-tester`) with a complete
-  operational spec — locator policy, async patterns, governance rules,
-  classification playbooks
-- **A dedicated subagent** (`playwright-enterprise-tester`) that handles
-  discover → configure → author → execute → diagnose → fix → report
-- **A slash command** (`/playwright-tester`) with fine-grained invocation
+Anyone who has tried to scale Playwright + AI on a real product ends up in
+the same three traps:
+
+1. **The AI burns tokens driving the browser live.** Every session starts from
+   zero — no persistent strategy, no repeatable patterns, no shared memory of
+   what worked yesterday. A 200-spec suite becomes a token bonfire.
+2. **The suite rots without governance.** Flaky tests get retried into the
+   green. CSS selectors break on every Tailwind rebuild. Failures are not
+   classified, so nobody knows whether *the test* is wrong, *the app* is
+   wrong, or *the environment* is wrong. Worse: the AI silently patches your
+   production code to "make the test pass".
+3. **Generic Playwright guides ignore your stack.** Laravel CSRF tokens,
+   Livewire `wire:model` bindings, Next.js 14 hydration races, Bun dev-server
+   readiness, Cloudflare `wrangler dev` quirks, Inertia partial reloads,
+   cross-browser shadow-DOM, accessibility, performance budgets — none of
+   that is in the docs.
+
+**This plugin is the answer we wish someone had handed us three years ago.**
+
+It encodes the operational discipline of a senior QA org as a Claude Code
+plugin: a persistent skill that *teaches* the AI how to behave, an agent
+that *executes* the workflow, a slash command that *triggers* it, and a
+config file that *constrains* it. The result is an AI that authors and
+diagnoses tests like a seasoned engineer — and never silently rewrites
+your application code.
+
+## The 60-second value proposition
+
+| Without this plugin | With this plugin |
+|---|---|
+| AI generates `page.locator('.sc-a8b21f > div:nth-child(3)')` | AI follows enforced order: `getByRole > getByLabel > getByPlaceholder > getByText > getByTestId > CSS` |
+| Test fails → AI patches the app to make it green | Failure is classified `test_bug` / `app_bug` / `environment_bug` / `flaky` with evidence; app fixes require a 4-condition guardrail |
+| Flaky tests retried until they pass | Versioned `flakiness-history.jsonl`, quarantine workflow, rank-by-flakiness scripts |
+| Generic Playwright config copy-pasted from blog | Stack auto-detect (Laravel / Next.js / Bun / CF Workers / monorepos) with stack-specific patterns |
+| `waitForTimeout(2000)` everywhere | Async policy: business signals only, no sleeps, no `networkidle` as default |
+| Screenshots leak PII to CI artifacts | PII masking forced in CI, optional GDPR `trace.zip` scrubber |
+| Console errors hidden behind passing assertions | Silent-failure capture (`pageerror`, `requestfailed`, `console.error`) with allowlist |
+| "It's red in CI" → endless guesswork | Mandatory `TEST-CI-001` workflow: full job log + all artifacts + Laravel logs downloaded **before** any fix is proposed |
+| New tester onboarded in 2 weeks | Day-1 checklist + week-1 plan + per-role paths in `docs/ONBOARDING.md` |
+| You discover a missing feature mid-sprint | 17 phase-2 features (cross-tab, axe, Lighthouse, AI RCA, swarm, Slack, GitHub issues, …) shipped & dormant — flip a boolean |
+
+**Net effect:** the AI stops being a liability and starts being a force
+multiplier. Your suite stops being a chore and starts being an asset.
+
+## Who is this for?
+
+- **Engineering leads** who want AI-assisted testing **without** the AI
+  silently editing production code.
+- **QA / SDET teams** scaling Playwright past 50–100 specs and running into
+  flakiness, classification, and reporting pain.
+- **Solo founders & small teams** who need enterprise-grade defaults without
+  hiring an enterprise-grade QA org.
+- **Laravel, Next.js, Bun, and Cloudflare Workers shops** that are tired of
+  generic guides and want stack-aware patterns out of the box.
+- **Teams under audit / compliance pressure** (GDPR, accessibility, perf
+  SLOs) who need PII masking, axe scanning, Lighthouse, and a paper trail.
+
+Not for: tiny throwaway projects with three smoke tests — the configuration
+and governance overhead is not worth it. Use vanilla Playwright there.
+
+## What ships in the box
+
+- **A persistent skill** (`playwright-enterprise-tester`) — the complete
+  operational spec: locator policy, async patterns, governance rules,
+  failure-classification playbooks
+- **A dedicated subagent** (`playwright-enterprise-tester`) — runs the
+  full loop: discover → configure → author → execute → diagnose → fix → report
+- **A slash command** (`/playwright-tester`) — fine-grained invocation
   (files, folders, tags, modes, brands, runners)
-- **A policy config file** (`.playwright-tester.json`) with 17 opt-in phase 2
-  features, all toggle-independent, all OFF by default
-- **31 reference docs** with patterns, playbooks, scenarios, troubleshooting
-- **21 starter templates** for specs, fixtures, setup, helpers
-- **15 helper scripts** for classification, flakiness, linting, notifications,
-  AI analysis, and more
+- **A policy config file** (`.playwright-tester.json`) — 17 opt-in phase-2
+  features, all toggle-independent, all OFF by default, defensive-minimal
+  defaults
+- **A mandatory CI-failure rule** (`TEST-CI-001`,
+  [`rules/rule-ci-test-failure-analysis.md`](rules/rule-ci-test-failure-analysis.md))
+  — no fix without full log + all artifacts + Laravel logs
+- **31 reference docs** — patterns, playbooks, scenarios, troubleshooting
+- **21 starter templates** — specs, fixtures, setup, helpers, husky, scraping
+- **15 helper scripts** — classification, flakiness, linting, notifications,
+  AI analysis, swarm orchestrator, GDPR trace scrubber, dashboard push
+- **An interactive installer** — detects your stack, scaffolds config and
+  skeleton, prints next steps
 
 ## Feature highlights
 
-### Phase 1 (always on)
+### Phase 1 — always on
 
 - **Multi-stack autodetect** — Laravel, Vite, Mix, Node, Bun, Cloudflare
   Workers, monorepos
@@ -54,10 +132,10 @@ This plugin solves all three by shipping:
   silent-failure capture, and PII masking (in CI) are always on
 - **Locator policy** — enforced order `getByRole > getByLabel > getByPlaceholder
   > getByText > getByTestId > CSS`
-- **Async policy** — no `waitForTimeout`, no `networkidle` as default, business
-  signals only
-- **Failure classification** — 4 types (`test_bug`, `app_bug`, `environment_bug`,
-  `flaky`) with deterministic autofix playbooks
+- **Async policy** — no `waitForTimeout`, no `networkidle` as default,
+  business signals only
+- **Failure classification** — 4 types (`test_bug`, `app_bug`,
+  `environment_bug`, `flaky`) with deterministic autofix playbooks
 - **Governance** — app code changes require 4-condition double-confirm guardrail
 - **Flakiness history** — stable JSONL schema (versioned) for analytics
 - **Frontend contracts report** — manual/qualitative a11y findings
@@ -70,8 +148,10 @@ This plugin solves all three by shipping:
 - **Visual regression** — `toHaveScreenshot` with baseline management (opt-in)
 - **Performance budgets** — web-vitals injected, per-page-type LCP/CLS/INP/FCP
   (opt-in)
+- **CI failure analysis (TEST-CI-001)** — mandatory full-log + all-artifacts
+  + Laravel-logs ingestion before any diagnosis or fix
 
-### Phase 2 (17 opt-in features, all OFF by default)
+### Phase 2 — 17 opt-in features (all OFF by default)
 
 | # | Feature | Config toggle |
 |---|---|---|
@@ -251,6 +331,7 @@ Override: `PWTEST_RUNNER_MODE=local|ci`.
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Deep dive into the plugin architecture |
 | [docs/MIGRATION.md](docs/MIGRATION.md) | Upgrading from older versions or adopting mid-project |
 | [docs/examples/](docs/examples/) | Per-stack integration examples |
+| [rules/rule-ci-test-failure-analysis.md](rules/rule-ci-test-failure-analysis.md) | TEST-CI-001 — mandatory CI-failure analysis workflow |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
 
@@ -298,7 +379,7 @@ Structure (simplified):
 
 Full parameter reference: [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
-## Required `.gitignore` entry (CI failure analysis — TEST-CI-001)
+## CI failure analysis — required `.gitignore` (TEST-CI-001)
 
 The skill's CI failure analysis rule (`TEST-CI-001`,
 [`rules/rule-ci-test-failure-analysis.md`](rules/rule-ci-test-failure-analysis.md))
@@ -657,6 +738,10 @@ See [CHANGELOG.md](CHANGELOG.md).
 
 Built on top of [Playwright](https://playwright.dev/) by Microsoft.
 Designed for [Claude Code](https://claude.com/claude-code) by Anthropic.
+
+If this plugin saved you a sprint of YAK shaving, a star on
+[GitHub](https://github.com/lopadova/playwright-enterprise-tester) is the
+cheapest way to say thanks — and it helps other teams discover it.
 
 ---
 
